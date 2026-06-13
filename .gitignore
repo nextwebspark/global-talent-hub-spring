@@ -1,0 +1,49 @@
+### --- Build Tools & Artifacts ---
+# Maven build directory
+target/
+*.jar
+*.war
+*.ear
+
+# Gradle build directory
+build/
+.gradle/
+/out/
+
+### --- IDE Specifics ---
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# Eclipse
+.metadata/
+.classpath
+.project
+.settings/
+*.launch
+.factorypath
+
+# Visual Studio Code
+.vscode/
+
+### --- Spring Boot Specifics ---
+# STS (Spring Tool Suite) Cache
+.sts4-cache/
+.springBeans
+
+# Local Environment & Secrets
+.env
+.env.local
+*.properties.local
+*.yml.local
+
+### --- Logs and Temporary Files ---
+*.log
+logs/
+*.swp
+*.tmp
+.DS_Store
+Thumbs.db
