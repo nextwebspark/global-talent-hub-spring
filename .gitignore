@@ -39,6 +39,12 @@ out/
 .env.local
 *.properties.local
 *.yml.local
+# Local Spring profile holding real DB/Vertex secrets — never commit.
+application-local.properties
+src/main/resources/application-local.properties
+# GCP service-account key files.
+*-sa-key.json
+gcp-key*.json
 
 ### --- Logs and Temporary Files ---
 *.log

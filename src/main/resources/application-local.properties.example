@@ -1,0 +1,21 @@
+# ── LOCAL profile TEMPLATE — committed. Copy to application-local.properties ──
+#   cp src/main/resources/application-local.properties.example \
+#      src/main/resources/application-local.properties
+# Then fill in real values. The real file is gitignored.
+# Run:  SPRING_PROFILES_ACTIVE=dev,local mvn spring-boot:run
+
+spring.datasource.url=jdbc:postgresql://localhost:5432/global_talent_hub
+spring.datasource.username=postgres
+spring.datasource.password=
+
+app.supabase.jwt-secret=
+# app.supabase.jwt-issuer=https://<project-ref>.supabase.co/auth/v1
+
+spring.ai.vertex.ai.gemini.project-id=
+spring.ai.vertex.ai.gemini.location=us-central1
+spring.ai.vertex.ai.gemini.credentials-uri=file:/absolute/path/to/gcp-sa-key.json
+
+# app.clockwork.api-key=
+# app.clockwork.api-secret=
+# app.clockwork.firm-key=
+# app.clockwork.firm-slug=
