@@ -105,7 +105,9 @@ public class ImportProjectService {
                     imported++;
                 }
             } catch (Exception ex) {
-                errors.add(ex.getMessage());
+                // Don't echo internal exception detail to the client; log it server-side.
+                log.warn("[ImportProject] row skipped: {}", ex.getMessage());
+                errors.add("Row could not be imported");
                 skipped++;
             }
         }

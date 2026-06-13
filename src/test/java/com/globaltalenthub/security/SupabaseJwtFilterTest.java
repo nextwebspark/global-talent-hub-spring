@@ -203,4 +203,63 @@ class SupabaseJwtFilterTest {
 
         f.verifySecret(); // no throw
     }
+
+    // ── S4: query-param token only on the SSE route ──────────────────────────────
+    @Test
+    void queryParamToken_onNonSsePath_isIgnored() throws Exception {
+        // Token supplied as ?access_token= on a normal API path must NOT authenticate.
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/companies");
+        req.addParameter("access_token", buildToken("user-x"));
+        MockHttpServletResponse res = new MockHttpServletResponse();
+
+        filter.doFilterInternal(req, res, new MockFilterChain());
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        assertThat(res.getStatus()).isEqualTo(200); // chained through unauthenticated
+        verifyNoInteractions(orgMemberRepo);
+    }
+
+    // ── S5: audience binding ──────────────────────────────────────────────────────
+    @Test
+    void wrongAudience_isRejected() throws Exception {
+        ReflectionTestUtils.setField(filter, "jwtAudience", "authenticated");
+
+        SecretKey key = Keys.hmacShaKeyFor(JWT_SECRET.getBytes(StandardCharsets.UTF_8));
+        String token = Jwts.builder().subject("user-aud").audience().add("some-other-app").and()
+            .issuedAt(new Date()).expiration(new Date(System.currentTimeMillis() + 3_600_000))
+            .signWith(key).compact();
+
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/companies");
+        req.addHeader("Authorization", "Bearer " + token);
+        MockHttpServletResponse res = new MockHttpServletResponse();
+
+        filter.doFilterInternal(req, res, new MockFilterChain());
+
+        assertThat(res.getStatus()).isEqualTo(401);
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    }
+
+    @Test
+    void correctAudience_isAccepted() throws Exception {
+        ReflectionTestUtils.setField(filter, "jwtAudience", "authenticated");
+        OrgMember member = new OrgMember();
+        member.setUserId("user-aud2");
+        member.setOrgId("org-1");
+        when(orgMemberRepo.findByUserId("user-aud2")).thenReturn(Optional.of(member));
+
+        SecretKey key = Keys.hmacShaKeyFor(JWT_SECRET.getBytes(StandardCharsets.UTF_8));
+        String token = Jwts.builder().subject("user-aud2").audience().add("authenticated").and()
+            .issuedAt(new Date()).expiration(new Date(System.currentTimeMillis() + 3_600_000))
+            .signWith(key).compact();
+
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/companies");
+        req.addHeader("Authorization", "Bearer " + token);
+        MockHttpServletResponse res = new MockHttpServletResponse();
+
+        filter.doFilterInternal(req, res, new MockFilterChain());
+
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        assertThat(auth).isNotNull();
+        assertThat(((AuthenticatedUser) auth.getPrincipal()).userId()).isEqualTo("user-aud2");
+    }
 }

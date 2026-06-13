@@ -86,9 +86,13 @@ public class SupabaseJwtFilter extends OncePerRequestFilter {
         }
 
         try {
-            Claims claims = Jwts.parser()
-                .verifyWith(Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8)))
-                .build()
+            var parser = Jwts.parser()
+                .verifyWith(Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8)));
+            // Bind to expected audience/issuer so a token signed with the same secret but
+            // from a different project / of a different type is rejected (not just valid sig).
+            if (jwtAudience != null && !jwtAudience.isBlank()) parser.requireAudience(jwtAudience);
+            if (jwtIssuer != null && !jwtIssuer.isBlank()) parser.requireIssuer(jwtIssuer);
+            Claims claims = parser.build()
                 .parseSignedClaims(token)
                 .getPayload();
 
