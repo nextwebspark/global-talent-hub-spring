@@ -1,5 +1,7 @@
 package com.globaltalenthub.service;
 
+import java.util.UUID;
+
 import com.globaltalenthub.entity.CompanyNotes;
 import com.globaltalenthub.entity.ExecutiveNotes;
 import com.globaltalenthub.repository.CompanyNotesRepository;
@@ -20,14 +22,14 @@ public class NotesService {
     private final CompanyNotesRepository companyNotesRepo;
     private final OrgGuardService orgGuard;
 
-    public String getExecutiveNotes(Long executiveId, String orgId) {
+    public String getExecutiveNotes(Long executiveId, UUID orgId) {
         orgGuard.assertExecutiveInOrg(executiveId, orgId);
         return executiveNotesRepo.findFirstByExecutiveIdOrderByCreatedAtDesc(executiveId)
             .map(ExecutiveNotes::getContent).orElse("");
     }
 
     @Transactional
-    public String putExecutiveNotes(Long executiveId, String content, String orgId) {
+    public String putExecutiveNotes(Long executiveId, String content, UUID orgId) {
         orgGuard.assertExecutiveInOrg(executiveId, orgId);
         ExecutiveNotes note = executiveNotesRepo.findFirstByExecutiveIdOrderByCreatedAtDesc(executiveId)
             .orElseGet(() -> {
@@ -40,14 +42,14 @@ public class NotesService {
         return content;
     }
 
-    public String getCompanyNotes(Long companyId, String orgId) {
+    public String getCompanyNotes(Long companyId, UUID orgId) {
         orgGuard.assertCompanyInOrg(companyId, orgId);
         return companyNotesRepo.findFirstByCompanyIdOrderByCreatedAtDesc(companyId)
             .map(CompanyNotes::getContent).orElse("");
     }
 
     @Transactional
-    public String putCompanyNotes(Long companyId, String content, String orgId) {
+    public String putCompanyNotes(Long companyId, String content, UUID orgId) {
         orgGuard.assertCompanyInOrg(companyId, orgId);
         CompanyNotes note = companyNotesRepo.findFirstByCompanyIdOrderByCreatedAtDesc(companyId)
             .orElseGet(() -> {

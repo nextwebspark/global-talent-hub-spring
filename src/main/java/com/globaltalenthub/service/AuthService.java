@@ -34,7 +34,7 @@ public class AuthService {
     }
 
     @Transactional
-    public SignupResult signupOrg(String userId, String email, Map<String, Object> body) {
+    public SignupResult signupOrg(UUID userId, String email, Map<String, Object> body) {
         @SuppressWarnings("unchecked")
         Map<String, Object> org = body.get("org") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
         String name = org.get("name") instanceof String s ? s.trim() : "";
@@ -52,7 +52,7 @@ public class AuthService {
         }
 
         Organization organization = new Organization();
-        organization.setId(UUID.randomUUID().toString());
+        organization.setId(UUID.randomUUID());
         organization.setName(name);
         organization.setSlug(slug);
         if (org.get("teamSize") instanceof String s) organization.setTeamSize(s);
@@ -63,7 +63,7 @@ public class AuthService {
         organizationRepo.save(organization);
 
         OrgMember member = new OrgMember();
-        member.setId(UUID.randomUUID().toString());
+        member.setId(UUID.randomUUID());
         member.setOrgId(organization.getId());
         member.setUserId(userId);
         member.setEmail(email);
@@ -84,7 +84,7 @@ public class AuthService {
         return new SignupResult(organization, "owner");
     }
 
-    public AuthContext me(String userId, String email) {
+    public AuthContext me(UUID userId, String email) {
         OrgMember membership = orgMemberRepo.findByUserId(userId).orElse(null);
         Organization org = membership != null ? organizationRepo.findById(membership.getOrgId()).orElse(null) : null;
         UserProfile profile = profileRepo.findById(userId).orElse(null);

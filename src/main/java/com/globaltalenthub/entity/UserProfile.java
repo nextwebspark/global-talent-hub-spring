@@ -8,6 +8,7 @@ import org.hibernate.annotations.Type;
 
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.UUID;
 
 @Entity
 @Table(name = "hak_user_profiles")
@@ -17,7 +18,7 @@ public class UserProfile {
 
     @Id
     @Column(name = "user_id")
-    private String userId;
+    private UUID userId;
 
     @Column(name = "full_name")
     private String fullName;

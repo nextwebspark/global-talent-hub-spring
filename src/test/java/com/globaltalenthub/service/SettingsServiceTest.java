@@ -15,7 +15,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
+import static com.globaltalenthub.TestIds.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -33,17 +35,17 @@ class SettingsServiceTest {
 
     @InjectMocks SettingsService service;
 
-    private OrgMember member(String id, String role) {
+    private OrgMember member(UUID id, String role) {
         OrgMember m = new OrgMember();
         m.setId(id);
-        m.setOrgId("org-1");
+        m.setOrgId(uuid("org-1"));
         m.setRole(role);
         return m;
     }
 
     @Test
     void updateOrganization_nonAdmin_throws403() {
-        assertThatThrownBy(() -> service.updateOrganization("org-1", "member", Map.of("name", "X")))
+        assertThatThrownBy(() -> service.updateOrganization(uuid("org-1"), "member", Map.of("name", "X")))
             .isInstanceOf(ResponseStatusException.class)
             .extracting(e -> ((ResponseStatusException) e).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         verify(organizationRepo, never()).save(any());
@@ -51,38 +53,38 @@ class SettingsServiceTest {
 
     @Test
     void updateMemberRole_invalidRole_throws400() {
-        assertThatThrownBy(() -> service.updateMemberRole("m1", "org-1", "admin", "superuser"))
+        assertThatThrownBy(() -> service.updateMemberRole(uuid("m1"), uuid("org-1"), "admin", "superuser"))
             .isInstanceOf(ResponseStatusException.class)
             .extracting(e -> ((ResponseStatusException) e).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
     @Test
     void updateMemberRole_demotingOnlyOwner_throws409() {
-        when(orgMemberRepo.findById("m1")).thenReturn(Optional.of(member("m1", "owner")));
-        when(orgMemberRepo.countByOrgIdAndRole("org-1", "owner")).thenReturn(1L);
+        when(orgMemberRepo.findById(uuid("m1"))).thenReturn(Optional.of(member(uuid("m1"), "owner")));
+        when(orgMemberRepo.countByOrgIdAndRole(uuid("org-1"), "owner")).thenReturn(1L);
 
-        assertThatThrownBy(() -> service.updateMemberRole("m1", "org-1", "admin", "member"))
+        assertThatThrownBy(() -> service.updateMemberRole(uuid("m1"), uuid("org-1"), "admin", "member"))
             .isInstanceOf(ResponseStatusException.class)
             .extracting(e -> ((ResponseStatusException) e).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
     @Test
     void updateMemberRole_validDemotion_whenMultipleOwners_succeeds() {
-        when(orgMemberRepo.findById("m1")).thenReturn(Optional.of(member("m1", "owner")));
-        when(orgMemberRepo.countByOrgIdAndRole("org-1", "owner")).thenReturn(2L);
+        when(orgMemberRepo.findById(uuid("m1"))).thenReturn(Optional.of(member(uuid("m1"), "owner")));
+        when(orgMemberRepo.countByOrgIdAndRole(uuid("org-1"), "owner")).thenReturn(2L);
         when(orgMemberRepo.save(any())).thenAnswer(i -> i.getArgument(0));
 
-        OrgMember updated = service.updateMemberRole("m1", "org-1", "admin", "member");
+        OrgMember updated = service.updateMemberRole(uuid("m1"), uuid("org-1"), "admin", "member");
 
         assertThat(updated.getRole()).isEqualTo("member");
     }
 
     @Test
     void deleteMember_removingOnlyOwner_throws409() {
-        when(orgMemberRepo.findById("m1")).thenReturn(Optional.of(member("m1", "owner")));
-        when(orgMemberRepo.countByOrgIdAndRole("org-1", "owner")).thenReturn(1L);
+        when(orgMemberRepo.findById(uuid("m1"))).thenReturn(Optional.of(member(uuid("m1"), "owner")));
+        when(orgMemberRepo.countByOrgIdAndRole(uuid("org-1"), "owner")).thenReturn(1L);
 
-        assertThatThrownBy(() -> service.deleteMember("m1", "org-1", "owner"))
+        assertThatThrownBy(() -> service.deleteMember(uuid("m1"), uuid("org-1"), "owner"))
             .isInstanceOf(ResponseStatusException.class)
             .extracting(e -> ((ResponseStatusException) e).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         verify(orgMemberRepo, never()).delete(any());
@@ -90,11 +92,11 @@ class SettingsServiceTest {
 
     @Test
     void memberInOtherOrg_treatedAsNotFound() {
-        OrgMember other = member("m1", "admin");
-        other.setOrgId("org-2");
-        when(orgMemberRepo.findById("m1")).thenReturn(Optional.of(other));
+        OrgMember other = member(uuid("m1"), "admin");
+        other.setOrgId(uuid("org-2"));
+        when(orgMemberRepo.findById(uuid("m1"))).thenReturn(Optional.of(other));
 
-        assertThatThrownBy(() -> service.updateMemberRole("m1", "org-1", "admin", "member"))
+        assertThatThrownBy(() -> service.updateMemberRole(uuid("m1"), uuid("org-1"), "admin", "member"))
             .isInstanceOf(ResponseStatusException.class)
             .extracting(e -> ((ResponseStatusException) e).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }

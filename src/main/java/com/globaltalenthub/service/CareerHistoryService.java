@@ -1,5 +1,7 @@
 package com.globaltalenthub.service;
 
+import java.util.UUID;
+
 import com.globaltalenthub.entity.CareerHistory;
 import com.globaltalenthub.repository.CareerHistoryRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,20 +21,20 @@ public class CareerHistoryService {
     private final CareerHistoryRepository repo;
     private final OrgGuardService orgGuard;
 
-    public List<CareerHistory> byExecutive(Long executiveId, String orgId) {
+    public List<CareerHistory> byExecutive(Long executiveId, UUID orgId) {
         orgGuard.assertExecutiveInOrg(executiveId, orgId);
         return repo.findByExecutiveIdOrderBySortOrderAsc(executiveId);
     }
 
     @Transactional
-    public CareerHistory create(Long executiveId, CareerHistory entry, String orgId) {
+    public CareerHistory create(Long executiveId, CareerHistory entry, UUID orgId) {
         orgGuard.assertExecutiveInOrg(executiveId, orgId);
         entry.setExecutiveId(executiveId);
         return repo.save(entry);
     }
 
     @Transactional
-    public CareerHistory update(Long id, Map<String, Object> patch, String orgId) {
+    public CareerHistory update(Long id, Map<String, Object> patch, UUID orgId) {
         orgGuard.assertCareerHistoryInOrg(id, orgId);
         CareerHistory e = repo.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Career history not found"));
@@ -52,7 +54,7 @@ public class CareerHistoryService {
     }
 
     @Transactional
-    public void delete(Long id, String orgId) {
+    public void delete(Long id, UUID orgId) {
         orgGuard.assertCareerHistoryInOrg(id, orgId);
         repo.deleteById(id);
     }

@@ -1,5 +1,7 @@
 package com.globaltalenthub.service;
 
+import java.util.UUID;
+
 import com.globaltalenthub.entity.Company;
 import com.globaltalenthub.entity.Executive;
 import com.globaltalenthub.entity.PipelineLog;
@@ -61,26 +63,26 @@ public class CompanyService {
 
     // ── Manual CRUD (UI layer) ─────────────────────────────────────────────────
 
-    public java.util.List<CompanyWithExecutives> getAllWithExecutives(String orgId) {
+    public java.util.List<CompanyWithExecutives> getAllWithExecutives(UUID orgId) {
         return companyRepo.findByOrgId(orgId).stream()
             .map(c -> new CompanyWithExecutives(c, executiveRepo.findByCompanyIdAndOrgId(c.getId(), orgId)))
             .toList();
     }
 
-    public CompanyWithExecutives getWithExecutives(Long id, String orgId) {
+    public CompanyWithExecutives getWithExecutives(Long id, UUID orgId) {
         Company c = companyRepo.findByIdAndOrgId(id, orgId)
             .orElseThrow(() -> new ResponseStatusException(
                 HttpStatus.NOT_FOUND, "Company not found"));
         return new CompanyWithExecutives(c, executiveRepo.findByCompanyIdAndOrgId(id, orgId));
     }
 
-    public java.util.List<Company> searchByName(String name, String orgId) {
+    public java.util.List<Company> searchByName(String name, UUID orgId) {
         if (name == null || name.trim().length() < 2) return java.util.List.of();
         return companyRepo.searchByName(name.trim(), orgId);
     }
 
     @Transactional
-    public Company createManual(Map<String, Object> body, String orgId) {
+    public Company createManual(Map<String, Object> body, UUID orgId) {
         Company company = new Company();
         applyPatch(company, body);
         company.setOrgId(orgId);
@@ -100,7 +102,7 @@ public class CompanyService {
     }
 
     @Transactional
-    public Company updateManual(Long id, Map<String, Object> patch, String orgId) {
+    public Company updateManual(Long id, Map<String, Object> patch, UUID orgId) {
         Company c = companyRepo.findByIdAndOrgId(id, orgId)
             .orElseThrow(() -> new ResponseStatusException(
                 HttpStatus.NOT_FOUND, "Company not found"));
@@ -123,7 +125,7 @@ public class CompanyService {
     }
 
     @Transactional
-    public void delete(Long id, String orgId) {
+    public void delete(Long id, UUID orgId) {
         Company c = companyRepo.findByIdAndOrgId(id, orgId)
             .orElseThrow(() -> new ResponseStatusException(
                 HttpStatus.NOT_FOUND, "Company not found"));
@@ -205,7 +207,7 @@ public class CompanyService {
     }
 
     @Transactional
-    public UpsertResult upsertNonDestructive(Company incoming, Long searchQueryId, String orgId,
+    public UpsertResult upsertNonDestructive(Company incoming, Long searchQueryId, UUID orgId,
                                              Map<String, Integer> fieldConfidences) {
         Map<String, Integer> conf = fieldConfidences == null ? Map.of() : fieldConfidences;
         Optional<Company> existingOpt = companyRepo

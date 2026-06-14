@@ -16,6 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.Map;
 import java.util.Optional;
 
+import static com.globaltalenthub.TestIds.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,11 +41,11 @@ class AuthServiceTest {
 
     @Test
     void signupOrg_createsOrgOwnerMemberAndProfile() {
-        when(orgMemberRepo.findByUserId("u1")).thenReturn(Optional.empty());
+        when(orgMemberRepo.findByUserId(uuid("u1"))).thenReturn(Optional.empty());
         when(organizationRepo.findBySlug(anyString())).thenReturn(Optional.empty());
         when(organizationRepo.save(any())).thenAnswer(i -> i.getArgument(0));
 
-        var result = service.signupOrg("u1", "u1@example.com",
+        var result = service.signupOrg(uuid("u1"), "u1@example.com",
             Map.of("org", Map.of("name", "Acme Search"), "name", "Jane Doe"));
 
         assertThat(result.role()).isEqualTo("owner");
@@ -56,16 +57,16 @@ class AuthServiceTest {
 
     @Test
     void signupOrg_missingName_throws400() {
-        assertThatThrownBy(() -> service.signupOrg("u1", null, Map.of("org", Map.of())))
+        assertThatThrownBy(() -> service.signupOrg(uuid("u1"), null, Map.of("org", Map.of())))
             .isInstanceOf(ResponseStatusException.class)
             .extracting(e -> ((ResponseStatusException) e).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
     @Test
     void signupOrg_userAlreadyHasOrg_throws409() {
-        when(orgMemberRepo.findByUserId("u1")).thenReturn(Optional.of(new OrgMember()));
+        when(orgMemberRepo.findByUserId(uuid("u1"))).thenReturn(Optional.of(new OrgMember()));
 
-        assertThatThrownBy(() -> service.signupOrg("u1", null, Map.of("org", Map.of("name", "X"))))
+        assertThatThrownBy(() -> service.signupOrg(uuid("u1"), null, Map.of("org", Map.of("name", "X"))))
             .isInstanceOf(ResponseStatusException.class)
             .extracting(e -> ((ResponseStatusException) e).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         verify(organizationRepo, never()).save(any());
@@ -73,11 +74,11 @@ class AuthServiceTest {
 
     @Test
     void signupOrg_slugCollision_appendsSuffix() {
-        when(orgMemberRepo.findByUserId("u1")).thenReturn(Optional.empty());
+        when(orgMemberRepo.findByUserId(uuid("u1"))).thenReturn(Optional.empty());
         when(organizationRepo.findBySlug("acme")).thenReturn(Optional.of(new Organization()));
         when(organizationRepo.save(any())).thenAnswer(i -> i.getArgument(0));
 
-        var result = service.signupOrg("u1", null, Map.of("org", Map.of("name", "Acme")));
+        var result = service.signupOrg(uuid("u1"), null, Map.of("org", Map.of("name", "Acme")));
 
         assertThat(result.org().getSlug()).startsWith("acme-");
         assertThat(result.org().getSlug()).isNotEqualTo("acme");
@@ -85,10 +86,10 @@ class AuthServiceTest {
 
     @Test
     void me_noOrg_returnsNullOrgAndRole() {
-        when(orgMemberRepo.findByUserId("u1")).thenReturn(Optional.empty());
-        when(profileRepo.findById("u1")).thenReturn(Optional.empty());
+        when(orgMemberRepo.findByUserId(uuid("u1"))).thenReturn(Optional.empty());
+        when(profileRepo.findById(uuid("u1"))).thenReturn(Optional.empty());
 
-        var ctx = service.me("u1", "u1@example.com");
+        var ctx = service.me(uuid("u1"), "u1@example.com");
 
         assertThat(ctx.org()).isNull();
         assertThat(ctx.role()).isNull();

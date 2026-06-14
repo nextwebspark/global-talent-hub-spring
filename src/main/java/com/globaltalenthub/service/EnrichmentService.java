@@ -1,5 +1,7 @@
 package com.globaltalenthub.service;
 
+import java.util.UUID;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.globaltalenthub.entity.Company;
 import com.globaltalenthub.entity.Executive;
@@ -50,7 +52,7 @@ public class EnrichmentService {
     public record ImportResult(Long executiveId, Long companyId, boolean alreadyExisted) {}
 
     @Transactional
-    public ImportResult importCandidate(Map<String, Object> body, String orgId) {
+    public ImportResult importCandidate(Map<String, Object> body, UUID orgId) {
         Long searchId = asLong(body.get("searchId"));
         String clockworkId = asString(body.get("clockworkId"));
         String name = asString(body.get("name"));
@@ -97,7 +99,7 @@ public class EnrichmentService {
         return new ImportResult(saved.getId(), target.getId(), false);
     }
 
-    private Company researchAndCreate(String companyName, Long searchId, String orgId) {
+    private Company researchAndCreate(String companyName, Long searchId, UUID orgId) {
         try {
             JsonNode r = PipelineUtils.parseJsonSafe(classifier.classify(RESEARCH_PROMPT + companyName));
             if (r == null || !r.hasNonNull("name") || "Unknown".equalsIgnoreCase(r.get("name").asText())) {

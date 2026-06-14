@@ -10,6 +10,7 @@ import org.hibernate.annotations.Type;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.UUID;
 
 @Entity
 @Table(name = "hak_companies")
@@ -169,7 +170,7 @@ public class Company {
     private String searchSessionId;
 
     @Column(name = "org_id")
-    private String orgId;
+    private UUID orgId;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

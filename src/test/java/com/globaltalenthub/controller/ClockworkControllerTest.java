@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static com.globaltalenthub.TestIds.uuid;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -37,7 +38,7 @@ class ClockworkControllerTest {
 
     private UsernamePasswordAuthenticationToken auth(String role) {
         return new UsernamePasswordAuthenticationToken(
-            new AuthenticatedUser("u1", "u1@example.com", "org-1", role), null, List.of());
+            new AuthenticatedUser(uuid("u1"), "u1@example.com", uuid("org-1"), role), null, List.of());
     }
 
     @Test
@@ -56,7 +57,7 @@ class ClockworkControllerTest {
 
     @Test
     void people_projectNotLinkedToOrg_forbidden() throws Exception {
-        when(searchQueryRepo.existsByClockworkProjectIdAndOrgId("proj-9", "org-1")).thenReturn(false);
+        when(searchQueryRepo.existsByClockworkProjectIdAndOrgId("proj-9", uuid("org-1"))).thenReturn(false);
 
         mockMvc.perform(get("/api/clockwork/projects/proj-9/people").with(authentication(auth("member"))))
             .andExpect(status().isForbidden());
@@ -65,7 +66,7 @@ class ClockworkControllerTest {
 
     @Test
     void people_projectLinkedToOrg_allowed() throws Exception {
-        when(searchQueryRepo.existsByClockworkProjectIdAndOrgId("proj-1", "org-1")).thenReturn(true);
+        when(searchQueryRepo.existsByClockworkProjectIdAndOrgId("proj-1", uuid("org-1"))).thenReturn(true);
         when(clockwork.getProjectPeople("proj-1")).thenReturn(List.of());
 
         mockMvc.perform(get("/api/clockwork/projects/proj-1/people").with(authentication(auth("member"))))

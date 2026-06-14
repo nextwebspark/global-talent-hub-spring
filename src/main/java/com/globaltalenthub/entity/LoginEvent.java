@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "hak_login_events")
@@ -13,13 +14,13 @@ import java.time.LocalDateTime;
 public class LoginEvent {
 
     @Id
-    private String id;
+    private UUID id;
 
     @Column(name = "user_id", nullable = false)
-    private String userId;
+    private UUID userId;
 
     @Column(name = "org_id")
-    private String orgId;
+    private UUID orgId;
 
     @Column(nullable = false)
     private LocalDateTime at;

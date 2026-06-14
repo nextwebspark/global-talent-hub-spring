@@ -45,6 +45,8 @@ src/main/resources/application-local.properties
 # GCP service-account key files.
 *-sa-key.json
 gcp-key*.json
+*-vertex-key.json
+railway-vertex-key.json
 
 ### --- Logs and Temporary Files ---
 *.log

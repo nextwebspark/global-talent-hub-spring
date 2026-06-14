@@ -17,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 import java.util.Map;
 
+import static com.globaltalenthub.TestIds.uuid;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -41,7 +42,7 @@ class CompanyControllerTest {
     @Autowired ObjectMapper objectMapper;
     @MockBean CompanyService companyService;
 
-    private static final AuthenticatedUser USER = new AuthenticatedUser("u1", "u1@example.com", "org-1", "admin");
+    private static final AuthenticatedUser USER = new AuthenticatedUser(uuid("u1"), "u1@example.com", uuid("org-1"), "admin");
 
     private UsernamePasswordAuthenticationToken auth() {
         return new UsernamePasswordAuthenticationToken(USER, null, List.of());
@@ -52,14 +53,14 @@ class CompanyControllerTest {
         Company c = new Company();
         c.setId(1L);
         c.setName("Acme");
-        when(companyService.getAllWithExecutives("org-1"))
+        when(companyService.getAllWithExecutives(uuid("org-1")))
             .thenReturn(List.of(new CompanyWithExecutives(c, List.of())));
 
         mockMvc.perform(get("/api/companies").with(authentication(auth())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].company.name").value("Acme"));
 
-        verify(companyService).getAllWithExecutives("org-1");
+        verify(companyService).getAllWithExecutives(uuid("org-1"));
     }
 
     @Test
@@ -67,7 +68,7 @@ class CompanyControllerTest {
         Company saved = new Company();
         saved.setId(5L);
         saved.setName("NewCo");
-        when(companyService.createManual(any(), eq("org-1"))).thenReturn(saved);
+        when(companyService.createManual(any(), eq(uuid("org-1")))).thenReturn(saved);
 
         mockMvc.perform(post("/api/companies")
                 .with(authentication(auth()))
@@ -80,7 +81,7 @@ class CompanyControllerTest {
 
     @Test
     void getOne_missing_returns404() throws Exception {
-        when(companyService.getWithExecutives(eq(99L), eq("org-1")))
+        when(companyService.getWithExecutives(eq(99L), eq(uuid("org-1"))))
             .thenThrow(new ResponseStatusException(NOT_FOUND, "Company not found"));
 
         mockMvc.perform(get("/api/companies/99").with(authentication(auth())))
@@ -92,6 +93,6 @@ class CompanyControllerTest {
     void delete_returns204() throws Exception {
         mockMvc.perform(delete("/api/companies/3").with(authentication(auth())).with(csrf()))
             .andExpect(status().isNoContent());
-        verify(companyService).delete(3L, "org-1");
+        verify(companyService).delete(3L, uuid("org-1"));
     }
 }

@@ -20,7 +20,9 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Optional;
+import java.util.UUID;
 
+import static com.globaltalenthub.TestIds.uuid;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -72,16 +74,16 @@ class SupabaseJwtFilterTest {
 
     @Test
     void validBearerToken_withOrgMembership_setsAuthentication() throws Exception {
-        String userId = "user-abc";
+        UUID userId = uuid("user-abc");
         OrgMember member = new OrgMember();
         member.setUserId(userId);
-        member.setOrgId("org-xyz");
+        member.setOrgId(uuid("org-xyz"));
         member.setRole("admin");
 
         when(orgMemberRepo.findByUserId(userId)).thenReturn(Optional.of(member));
 
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/companies");
-        req.addHeader("Authorization", "Bearer " + buildToken(userId));
+        req.addHeader("Authorization", "Bearer " + buildToken(userId.toString()));
         MockHttpServletResponse res = new MockHttpServletResponse();
         MockFilterChain chain = new MockFilterChain();
 
@@ -91,21 +93,21 @@ class SupabaseJwtFilterTest {
         assertThat(auth).isNotNull();
         AuthenticatedUser principal = (AuthenticatedUser) auth.getPrincipal();
         assertThat(principal.userId()).isEqualTo(userId);
-        assertThat(principal.orgId()).isEqualTo("org-xyz");
+        assertThat(principal.orgId()).isEqualTo(uuid("org-xyz"));
         assertThat(principal.orgRole()).isEqualTo("admin");
     }
 
     @Test
     void validQueryParamToken_withOrg_setsAuthentication() throws Exception {
-        String userId = "user-sse";
+        UUID userId = uuid("user-sse");
         OrgMember member = new OrgMember();
         member.setUserId(userId);
-        member.setOrgId("org-sse");
+        member.setOrgId(uuid("org-sse"));
         member.setRole("member");
         when(orgMemberRepo.findByUserId(userId)).thenReturn(Optional.of(member));
 
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/search/enhanced-stream");
-        req.addParameter("access_token", buildToken(userId));
+        req.addParameter("access_token", buildToken(userId.toString()));
         MockHttpServletResponse res = new MockHttpServletResponse();
         MockFilterChain chain = new MockFilterChain();
 
@@ -115,19 +117,19 @@ class SupabaseJwtFilterTest {
         assertThat(auth).isNotNull();
         AuthenticatedUser principal = (AuthenticatedUser) auth.getPrincipal();
         assertThat(principal.userId()).isEqualTo(userId);
-        assertThat(principal.orgId()).isEqualTo("org-sse");
+        assertThat(principal.orgId()).isEqualTo(uuid("org-sse"));
     }
 
     @Test
     void emailClaim_populatedOnPrincipal() throws Exception {
-        String userId = "user-email";
+        UUID userId = uuid("user-email");
         OrgMember member = new OrgMember();
         member.setUserId(userId);
-        member.setOrgId("org-1");
+        member.setOrgId(uuid("org-1"));
         when(orgMemberRepo.findByUserId(userId)).thenReturn(Optional.of(member));
 
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/companies");
-        req.addHeader("Authorization", "Bearer " + buildToken(userId, "jane@example.com"));
+        req.addHeader("Authorization", "Bearer " + buildToken(userId.toString(), "jane@example.com"));
         MockHttpServletResponse res = new MockHttpServletResponse();
 
         filter.doFilterInternal(req, res, new MockFilterChain());
@@ -151,12 +153,25 @@ class SupabaseJwtFilterTest {
     }
 
     @Test
+    void validSignature_nonUuidSubject_returns401() throws Exception {
+        // Signature valid but 'sub' is not a UUID -> UUID.fromString throws -> 401.
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/companies");
+        req.addHeader("Authorization", "Bearer " + buildToken("not-a-uuid"));
+        MockHttpServletResponse res = new MockHttpServletResponse();
+
+        filter.doFilterInternal(req, res, new MockFilterChain());
+
+        assertThat(res.getStatus()).isEqualTo(401);
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    }
+
+    @Test
     void validToken_noOrgMembership_orgScopedPath_returns403() throws Exception {
-        String userId = "orphan-user";
+        UUID userId = uuid("orphan-user");
         when(orgMemberRepo.findByUserId(userId)).thenReturn(Optional.empty());
 
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/companies");
-        req.addHeader("Authorization", "Bearer " + buildToken(userId));
+        req.addHeader("Authorization", "Bearer " + buildToken(userId.toString()));
         MockHttpServletResponse res = new MockHttpServletResponse();
 
         filter.doFilterInternal(req, res, new MockFilterChain());
@@ -168,11 +183,11 @@ class SupabaseJwtFilterTest {
 
     @Test
     void validToken_noOrgMembership_authBootstrapPath_isAllowed() throws Exception {
-        String userId = "new-user";
+        UUID userId = uuid("new-user");
         when(orgMemberRepo.findByUserId(userId)).thenReturn(Optional.empty());
 
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/auth/me");
-        req.addHeader("Authorization", "Bearer " + buildToken(userId));
+        req.addHeader("Authorization", "Bearer " + buildToken(userId.toString()));
         MockHttpServletResponse res = new MockHttpServletResponse();
 
         filter.doFilterInternal(req, res, new MockFilterChain());
@@ -242,13 +257,14 @@ class SupabaseJwtFilterTest {
     @Test
     void correctAudience_isAccepted() throws Exception {
         ReflectionTestUtils.setField(filter, "jwtAudience", "authenticated");
+        UUID userId = uuid("user-aud2");
         OrgMember member = new OrgMember();
-        member.setUserId("user-aud2");
-        member.setOrgId("org-1");
-        when(orgMemberRepo.findByUserId("user-aud2")).thenReturn(Optional.of(member));
+        member.setUserId(userId);
+        member.setOrgId(uuid("org-1"));
+        when(orgMemberRepo.findByUserId(userId)).thenReturn(Optional.of(member));
 
         SecretKey key = Keys.hmacShaKeyFor(JWT_SECRET.getBytes(StandardCharsets.UTF_8));
-        String token = Jwts.builder().subject("user-aud2").audience().add("authenticated").and()
+        String token = Jwts.builder().subject(userId.toString()).audience().add("authenticated").and()
             .issuedAt(new Date()).expiration(new Date(System.currentTimeMillis() + 3_600_000))
             .signWith(key).compact();
 
@@ -260,6 +276,6 @@ class SupabaseJwtFilterTest {
 
         var auth = SecurityContextHolder.getContext().getAuthentication();
         assertThat(auth).isNotNull();
-        assertThat(((AuthenticatedUser) auth.getPrincipal()).userId()).isEqualTo("user-aud2");
+        assertThat(((AuthenticatedUser) auth.getPrincipal()).userId()).isEqualTo(userId);
     }
 }

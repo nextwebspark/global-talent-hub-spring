@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "hak_organizations")
@@ -13,7 +14,7 @@ import java.time.LocalDateTime;
 public class Organization {
 
     @Id
-    private String id;
+    private UUID id;
 
     @Column(nullable = false)
     private String name;
@@ -36,7 +37,7 @@ public class Organization {
     private Boolean require2fa;
 
     @Column(name = "created_by")
-    private String createdBy;
+    private UUID createdBy;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

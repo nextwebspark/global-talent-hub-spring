@@ -1,5 +1,7 @@
 package com.globaltalenthub.service.pipeline;
 
+import java.util.UUID;
+
 import com.globaltalenthub.dto.StreamCompanyDto;
 import com.globaltalenthub.entity.Company;
 import com.globaltalenthub.repository.SearchQueryRepository;
@@ -38,7 +40,7 @@ public class SearchPipelineService {
     private final CoordinateFallbackService coordinateFallbackService;
     private final SearchQueryRepository searchQueryRepository;
 
-    public void runSeedListEnhancedStream(String query, Long searchQueryId, String orgId, int limit,
+    public void runSeedListEnhancedStream(String query, Long searchQueryId, UUID orgId, int limit,
                                           BooleanSupplier aborted, String sessionId, String briefContext,
                                           EventSink sink) {
         sink.emit("status", "Understanding your query...", null);

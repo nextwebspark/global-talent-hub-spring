@@ -21,6 +21,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import java.util.List;
 
 @Component
@@ -96,11 +97,11 @@ public class SupabaseJwtFilter extends OncePerRequestFilter {
                 .parseSignedClaims(token)
                 .getPayload();
 
-            String userId = claims.getSubject();
+            UUID userId = UUID.fromString(claims.getSubject());
             Object emailClaim = claims.get("email");
             String email = emailClaim != null ? emailClaim.toString() : null;
             OrgMember membership = orgMemberRepo.findByUserId(userId).orElse(null);
-            String orgId = membership != null ? membership.getOrgId() : null;
+            UUID orgId = membership != null ? membership.getOrgId() : null;
 
             // Tenant isolation: a valid token without org membership must not reach
             // org-scoped endpoints (where orgId=null would leak org_id IS NULL rows).
@@ -119,7 +120,8 @@ public class SupabaseJwtFilter extends OncePerRequestFilter {
             SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(principal, null, List.of())
             );
-        } catch (JwtException e) {
+        } catch (JwtException | IllegalArgumentException e) {
+            // IllegalArgumentException: malformed 'sub' claim (not a UUID).
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid token");
             return;
         }

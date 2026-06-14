@@ -18,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 import java.util.Map;
 
+import static com.globaltalenthub.TestIds.uuid;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -42,7 +43,7 @@ class ExecutiveControllerTest {
     @Autowired ObjectMapper objectMapper;
     @MockBean ExecutiveService executiveService;
 
-    private static final AuthenticatedUser USER = new AuthenticatedUser("u1", "u1@example.com", "org-1", "admin");
+    private static final AuthenticatedUser USER = new AuthenticatedUser(uuid("u1"), "u1@example.com", uuid("org-1"), "admin");
 
     private UsernamePasswordAuthenticationToken auth() {
         return new UsernamePasswordAuthenticationToken(USER, null, List.of());
@@ -53,7 +54,7 @@ class ExecutiveControllerTest {
         Executive e = new Executive();
         e.setId(1L);
         e.setName("Jane CFO");
-        when(executiveService.getByCompany(10L, "org-1")).thenReturn(List.of(e));
+        when(executiveService.getByCompany(10L, uuid("org-1"))).thenReturn(List.of(e));
 
         mockMvc.perform(get("/api/companies/10/executives").with(authentication(auth())))
             .andExpect(status().isOk())
@@ -65,7 +66,7 @@ class ExecutiveControllerTest {
         Executive saved = new Executive();
         saved.setId(2L);
         saved.setName("New Exec");
-        when(executiveService.create(any(), eq("org-1"))).thenReturn(saved);
+        when(executiveService.create(any(), eq(uuid("org-1")))).thenReturn(saved);
 
         mockMvc.perform(post("/api/executives").with(authentication(auth())).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
@@ -78,19 +79,19 @@ class ExecutiveControllerTest {
     void patch_delegatesWithOrg() throws Exception {
         Executive updated = new Executive();
         updated.setId(3L);
-        when(executiveService.updateManual(eq(3L), any(), eq("org-1"))).thenReturn(updated);
+        when(executiveService.updateManual(eq(3L), any(), eq(uuid("org-1")))).thenReturn(updated);
 
         mockMvc.perform(patch("/api/executives/3").with(authentication(auth())).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("title", "CEO"))))
             .andExpect(status().isOk());
 
-        verify(executiveService).updateManual(eq(3L), any(), eq("org-1"));
+        verify(executiveService).updateManual(eq(3L), any(), eq(uuid("org-1")));
     }
 
     @Test
     void byCompany_notInOrg_returns404() throws Exception {
-        when(executiveService.getByCompany(eq(99L), eq("org-1")))
+        when(executiveService.getByCompany(eq(99L), eq(uuid("org-1"))))
             .thenThrow(new ResponseStatusException(NOT_FOUND, "Company not found"));
 
         mockMvc.perform(get("/api/companies/99/executives").with(authentication(auth())))
@@ -101,6 +102,6 @@ class ExecutiveControllerTest {
     void delete_returns204() throws Exception {
         mockMvc.perform(delete("/api/executives/5").with(authentication(auth())).with(csrf()))
             .andExpect(status().isNoContent());
-        verify(executiveService).delete(5L, "org-1");
+        verify(executiveService).delete(5L, uuid("org-1"));
     }
 }

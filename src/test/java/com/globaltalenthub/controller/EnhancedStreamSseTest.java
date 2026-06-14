@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 
+import static com.globaltalenthub.TestIds.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -64,7 +65,7 @@ class EnhancedStreamSseTest {
     @MockBean com.globaltalenthub.service.BriefExtractService briefExtractService;
     @MockBean com.globaltalenthub.service.SearchManagementService searchManagementService;
 
-    private static final AuthenticatedUser USER = new AuthenticatedUser("u1", "u1@example.com", "org-1", "admin");
+    private static final AuthenticatedUser USER = new AuthenticatedUser(uuid("u1"), "u1@example.com", uuid("org-1"), "admin");
 
     private void stubQueryAndSession() {
         SearchQuery sq = new SearchQuery();

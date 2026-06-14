@@ -34,6 +34,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
@@ -128,8 +129,8 @@ public class SearchController {
         emitter.onTimeout(() -> aborted.set(true));
         emitter.onError(e -> aborted.set(true));
 
-        String orgId = user.orgId();
-        String userId = user.userId();
+        UUID orgId = user.orgId();
+        UUID userId = user.userId();
 
         sseTaskExecutor.execute(() -> {
             EventSink sink = new SseSink(emitter, sessionId, objectMapper, searchSessionRepository);

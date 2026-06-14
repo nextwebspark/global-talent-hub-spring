@@ -1,5 +1,7 @@
 package com.globaltalenthub.service;
 
+import java.util.UUID;
+
 import com.globaltalenthub.repository.CareerHistoryRepository;
 import com.globaltalenthub.repository.CompanyRepository;
 import com.globaltalenthub.repository.ExecutiveRepository;
@@ -16,17 +18,17 @@ public class OrgGuardService {
     private final ExecutiveRepository executiveRepo;
     private final CareerHistoryRepository careerHistoryRepo;
 
-    public void assertCompanyInOrg(Long companyId, String orgId) {
+    public void assertCompanyInOrg(Long companyId, UUID orgId) {
         companyRepo.findByIdAndOrgId(companyId, orgId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found"));
     }
 
-    public void assertExecutiveInOrg(Long execId, String orgId) {
+    public void assertExecutiveInOrg(Long execId, UUID orgId) {
         executiveRepo.findByIdAndOrgId(execId, orgId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Executive not found"));
     }
 
-    public void assertCareerHistoryInOrg(Long careerHistoryId, String orgId) {
+    public void assertCareerHistoryInOrg(Long careerHistoryId, UUID orgId) {
         var careerHistory = careerHistoryRepo.findById(careerHistoryId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Career history not found"));
         // The owning executive must belong to the caller's org.

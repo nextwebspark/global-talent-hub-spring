@@ -14,7 +14,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
+import static com.globaltalenthub.TestIds.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -46,7 +48,7 @@ class CompanyServiceUpsertTest {
     private CompanyService companyService;
 
     private static final Long SEARCH_QUERY_ID = 42L;
-    private static final String ORG_ID = "org-123";
+    private static final UUID ORG_ID = uuid("org-123");
     private static final Map<String, Integer> PIPELINE_CONF = Map.of("country", 7, "sector", 7);
 
     @BeforeEach

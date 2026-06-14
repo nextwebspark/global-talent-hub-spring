@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.globaltalenthub.TestIds.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -67,12 +68,12 @@ class SearchPipelineServiceTest {
         when(companyService.upsertNonDestructive(any(), any(), any(), any()))
             .thenReturn(new CompanyService.UpsertResult(saved, true));
 
-        pipeline.runSeedListEnhancedStream("top tech", 5L, "org-1", 10, () -> false, "sess", null, sink);
+        pipeline.runSeedListEnhancedStream("top tech", 5L, uuid("org-1"), 10, () -> false, "sess", null, sink);
 
         assertThat(events).containsExactly(
             "status", "intent_extracted", "adjacent_sector_found", "status",
             "company_found", "company_enriched", "search_complete");
-        verify(searchQueryRepository).updateResultCount(5L, 1, "org-1");
+        verify(searchQueryRepository).updateResultCount(5L, 1, uuid("org-1"));
     }
 
     @Test
@@ -80,7 +81,7 @@ class SearchPipelineServiceTest {
         // empty() yields the fallback rationale → isUnmapped true.
         when(filterService.extract(any(), any())).thenReturn(EnrichmentFilter.empty("gibberish"));
 
-        pipeline.runSeedListEnhancedStream("gibberish", 5L, "org-1", 10, () -> false, "sess", null, sink);
+        pipeline.runSeedListEnhancedStream("gibberish", 5L, uuid("org-1"), 10, () -> false, "sess", null, sink);
 
         assertThat(events).containsExactly("status", "intent_extracted", "no_results");
         verify(queryService, never()).query(any(), anyInt());
@@ -91,7 +92,7 @@ class SearchPipelineServiceTest {
         when(filterService.extract(any(), any())).thenReturn(filter(List.of("Insurance"), List.of()));
         when(queryService.query(any(), anyInt())).thenReturn(List.of());
 
-        pipeline.runSeedListEnhancedStream("insurers", 5L, "org-1", 10, () -> false, "sess", null, sink);
+        pipeline.runSeedListEnhancedStream("insurers", 5L, uuid("org-1"), 10, () -> false, "sess", null, sink);
 
         assertThat(events).containsExactly("status", "intent_extracted", "status", "search_complete");
         verify(companyService, never()).upsertNonDestructive(any(), any(), any(), any());
@@ -102,7 +103,7 @@ class SearchPipelineServiceTest {
         when(filterService.extract(any(), any())).thenReturn(filter(List.of("Insurance"), List.of()));
         when(queryService.query(any(), anyInt())).thenThrow(new RuntimeException("db down"));
 
-        pipeline.runSeedListEnhancedStream("insurers", 5L, "org-1", 10, () -> false, "sess", null, sink);
+        pipeline.runSeedListEnhancedStream("insurers", 5L, uuid("org-1"), 10, () -> false, "sess", null, sink);
 
         assertThat(events).containsExactly("status", "intent_extracted", "status", "error");
     }
@@ -111,7 +112,7 @@ class SearchPipelineServiceTest {
     void abortedBeforeQuery_stopsEarly() {
         when(filterService.extract(any(), any())).thenReturn(filter(List.of("Insurance"), List.of()));
 
-        pipeline.runSeedListEnhancedStream("insurers", 5L, "org-1", 10, () -> true, "sess", null, sink);
+        pipeline.runSeedListEnhancedStream("insurers", 5L, uuid("org-1"), 10, () -> true, "sess", null, sink);
 
         // status, intent_extracted emitted; abort checked before the "Querying..." status.
         assertThat(events).containsExactly("status", "intent_extracted");
