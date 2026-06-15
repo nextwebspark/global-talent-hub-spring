@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.Type;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 import java.util.Map;
 
 @Entity
@@ -57,10 +58,10 @@ public class SearchQuery {
     private Map<String, Object> mapPositions;
 
     @Column(name = "org_id")
-    private String orgId;
+    private UUID orgId;
 
     @Column(name = "created_by")
-    private String createdBy;
+    private UUID createdBy;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

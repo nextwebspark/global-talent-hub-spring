@@ -1,5 +1,7 @@
 package com.globaltalenthub.service;
 
+import java.util.UUID;
+
 import com.globaltalenthub.entity.Company;
 import com.globaltalenthub.entity.SearchQuery;
 import com.globaltalenthub.repository.CompanyRepository;
@@ -29,7 +31,7 @@ public class SearchQueryService {
      * session's unique key, otherwise create a new draft. Mirrors upsertSearchQuery.
      */
     @Transactional
-    public SearchQuery upsertForSession(String query, String sessionId, String orgId, String userId, String parsedCriteria) {
+    public SearchQuery upsertForSession(String query, String sessionId, UUID orgId, UUID userId, String parsedCriteria) {
         String uniqueKey = "enhanced:" + sessionId;
         Optional<SearchQuery> existing = repository.findByUniqueKeyAndOrgId(uniqueKey, orgId);
         SearchQuery sq = existing.orElseGet(SearchQuery::new);
@@ -44,7 +46,7 @@ public class SearchQueryService {
     }
 
     @Transactional
-    public void updateResultCount(Long id, int count, String orgId) {
+    public void updateResultCount(Long id, int count, UUID orgId) {
         repository.updateResultCount(id, count, orgId);
     }
 
@@ -52,14 +54,14 @@ public class SearchQueryService {
 
     /** Delete a project's companies then the project itself. Org-scoped. */
     @Transactional
-    public void deleteResults(Long id, String orgId) {
+    public void deleteResults(Long id, UUID orgId) {
         SearchQuery sq = repository.findByIdAndOrgId(id, orgId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Search query not found"));
         deleteCompaniesAndQuery(sq, orgId);
     }
 
     @Transactional
-    public DraftResult updateDraft(Long id, Map<String, Object> body, String orgId) {
+    public DraftResult updateDraft(Long id, Map<String, Object> body, UUID orgId) {
         SearchQuery sq = repository.findByIdAndOrgId(id, orgId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Search query not found"));
         if (body.get("selectedCount") instanceof Number n) sq.setSelectedCount(n.intValue());
@@ -70,7 +72,7 @@ public class SearchQueryService {
 
     /** Delete only the projects owned by the org; returns how many were removed. */
     @Transactional
-    public int bulkDelete(java.util.List<Long> ids, String orgId) {
+    public int bulkDelete(java.util.List<Long> ids, UUID orgId) {
         if (ids == null || ids.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ids array is required");
         }
@@ -85,7 +87,7 @@ public class SearchQueryService {
     }
 
     @Transactional
-    public SearchQuery rename(Long id, String name, String orgId) {
+    public SearchQuery rename(Long id, String name, UUID orgId) {
         if (name == null || name.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "name is required");
         }
@@ -96,7 +98,7 @@ public class SearchQueryService {
     }
 
     @Transactional
-    public SearchQuery setClockworkProject(Long id, String clockworkProjectId, String orgId) {
+    public SearchQuery setClockworkProject(Long id, String clockworkProjectId, UUID orgId) {
         if (clockworkProjectId == null || clockworkProjectId.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "clockworkProjectId is required");
         }
@@ -106,7 +108,7 @@ public class SearchQueryService {
         return repository.save(sq);
     }
 
-    private void deleteCompaniesAndQuery(SearchQuery sq, String orgId) {
+    private void deleteCompaniesAndQuery(SearchQuery sq, UUID orgId) {
         for (Company c : companyRepository.findBySearchQueryIdAndOrgId(sq.getId(), orgId)) {
             companyRepository.delete(c);
         }

@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "hak_org_members")
@@ -13,13 +14,13 @@ import java.time.LocalDateTime;
 public class OrgMember {
 
     @Id
-    private String id;
+    private UUID id;
 
     @Column(name = "org_id", nullable = false)
-    private String orgId;
+    private UUID orgId;
 
     @Column(name = "user_id", nullable = false)
-    private String userId;
+    private UUID userId;
 
     private String email;
 

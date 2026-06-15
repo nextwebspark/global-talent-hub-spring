@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static com.globaltalenthub.TestIds.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -35,14 +36,14 @@ class ImportProjectServiceTest {
 
     @Test
     void noRecords_throws400() {
-        assertThatThrownBy(() -> service.importProject(Map.of("mappings", Map.of()), "org-1", "u1"))
+        assertThatThrownBy(() -> service.importProject(Map.of("mappings", Map.of()), uuid("org-1"), uuid("u1")))
             .isInstanceOf(ResponseStatusException.class).hasMessageContaining("No records");
     }
 
     @Test
     void noMappings_throws400() {
         assertThatThrownBy(() -> service.importProject(
-            Map.of("records", List.of(Map.of("A", "x"))), "org-1", "u1"))
+            Map.of("records", List.of(Map.of("A", "x"))), uuid("org-1"), uuid("u1")))
             .isInstanceOf(ResponseStatusException.class).hasMessageContaining("mappings");
     }
 
@@ -68,7 +69,7 @@ class ImportProjectServiceTest {
             Map.of("Name", "Sara", "Company", "Beta", "Country", "Qatar"));
 
         var result = service.importProject(Map.of("projectName", "Q1 Import", "records", records, "mappings", mappings),
-            "org-1", "u1");
+            uuid("org-1"), uuid("u1"));
 
         assertThat(result.imported()).isEqualTo(3);       // 3 executives
         assertThat(result.searchQueryId()).isEqualTo(1L);
@@ -87,7 +88,7 @@ class ImportProjectServiceTest {
         Map<String, String> mappings = Map.of("name", "Name", "company", "Company");
         List<Map<String, Object>> records = List.of(Map.of("Other", "irrelevant"));
 
-        var result = service.importProject(Map.of("records", records, "mappings", mappings), "org-1", "u1");
+        var result = service.importProject(Map.of("records", records, "mappings", mappings), uuid("org-1"), uuid("u1"));
 
         assertThat(result.imported()).isEqualTo(0);
         assertThat(result.skipped()).isEqualTo(1);

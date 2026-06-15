@@ -1,5 +1,7 @@
 package com.globaltalenthub.service;
 
+import java.util.UUID;
+
 import com.globaltalenthub.entity.Remuneration;
 import com.globaltalenthub.repository.RemunerationRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,20 +22,20 @@ public class RemunerationService {
     private final RemunerationRepository repo;
     private final OrgGuardService orgGuard;
 
-    public List<Remuneration> byExecutive(Long executiveId, String orgId) {
+    public List<Remuneration> byExecutive(Long executiveId, UUID orgId) {
         orgGuard.assertExecutiveInOrg(executiveId, orgId);
         return repo.findByExecutiveId(executiveId);
     }
 
     @Transactional
-    public Remuneration create(Long executiveId, Remuneration entry, String orgId) {
+    public Remuneration create(Long executiveId, Remuneration entry, UUID orgId) {
         orgGuard.assertExecutiveInOrg(executiveId, orgId);
         entry.setExecutiveId(executiveId);
         return repo.save(entry);
     }
 
     @Transactional
-    public Remuneration update(Long id, Map<String, Object> patch, String orgId) {
+    public Remuneration update(Long id, Map<String, Object> patch, UUID orgId) {
         Remuneration e = repo.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Remuneration not found"));
         orgGuard.assertExecutiveInOrg(e.getExecutiveId(), orgId);
@@ -56,7 +58,7 @@ public class RemunerationService {
     }
 
     @Transactional
-    public void delete(Long id, String orgId) {
+    public void delete(Long id, UUID orgId) {
         Remuneration e = repo.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Remuneration not found"));
         orgGuard.assertExecutiveInOrg(e.getExecutiveId(), orgId);

@@ -34,6 +34,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
@@ -128,8 +129,8 @@ public class SearchController {
         emitter.onTimeout(() -> aborted.set(true));
         emitter.onError(e -> aborted.set(true));
 
-        String orgId = user.orgId();
-        String userId = user.userId();
+        UUID orgId = user.orgId();
+        UUID userId = user.userId();
 
         sseTaskExecutor.execute(() -> {
             EventSink sink = new SseSink(emitter, sessionId, objectMapper, searchSessionRepository);
@@ -139,15 +140,18 @@ public class SearchController {
 
                 SearchQuery sq = searchQueryService.upsertForSession(query, sessionId, orgId, userId, null);
 
+                String userIdStr = userId != null ? userId.toString() : null;
                 SearchSession session = searchSessionRepository.findById(sessionId).orElseGet(() -> {
                     SearchSession s = new SearchSession();
                     s.setId(sessionId);
                     s.setRawQuery(query);
                     s.setStatus("active");
+                    s.setUserId(userIdStr);
                     return s;
                 });
                 session.setRawQuery(query);
                 if (session.getStatus() == null) session.setStatus("active");
+                if (session.getUserId() == null && userIdStr != null) session.setUserId(userIdStr);
                 session.setSearchQueryId(sq.getId());
                 searchSessionRepository.save(session);
 

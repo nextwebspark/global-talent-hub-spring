@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-AI-powered executive search / talent-mapping SaaS. Spring Boot 3.3.5, Java 21, PostgreSQL/JPA, Supabase JWT auth, Vertex AI Gemini, SSE streaming. Ported from a prior Node/Express + TypeScript codebase — many classes carry `port of X.ts` comments tracing their origin.
+AI-powered executive search / talent-mapping SaaS. Spring Boot 3.3.5, Java 21, PostgreSQL/JPA, app-owned (self-hosted) HS256 JWT auth, Vertex AI Gemini, SSE streaming. Ported from a prior Node/Express + TypeScript codebase — many classes carry `port of X.ts` comments tracing their origin.
 
 ## Build & Test Commands
 
@@ -23,13 +23,13 @@ AI-powered executive search / talent-mapping SaaS. Spring Boot 3.3.5, Java 21, P
 | Single test class | `mvn test -Dtest=ClassName` |
 | Single test method | `mvn test -Dtest=ClassName#method` |
 
-`mvn test` auto-activates the `test` profile (H2 in-memory, Vertex AI autoconfig excluded). Override the port with `PORT`. Key runtime env vars: `DATABASE_URL`, `SUPABASE_JWT_SECRET`, `GOOGLE_CLOUD_PROJECT`, `CLOCKWORK_*`.
+`mvn test` auto-activates the `test` profile (H2 in-memory, Vertex AI autoconfig excluded). Override the port with `PORT`. Key runtime env vars: `DATABASE_URL`, `APP_JWT_SECRET` (>=32 bytes; `APP_JWT_EXPIRY_SECONDS` optional, default 7d), `GOOGLE_CLOUD_PROJECT`, `CLOCKWORK_*`.
 
 ## Architecture
 
 Layering: **Controller → Service → Repository (Spring Data JPA) → Entity**. Root package `com.globaltalenthub`.
 
-- **Auth flow**: `SupabaseJwtFilter` validates an HS256 JWT (`SUPABASE_JWT_SECRET`), looks up the `OrgMember` by userId, and builds an `AuthenticatedUser(userId, email, orgId, orgRole)` principal. `SecurityConfig` is stateless; public routes are `/api/health`, `/api/auth/**`, `/api/config`, and SPA assets — everything else requires auth. The SSE route accepts a `?access_token=` query param, scoped to `/api/search/enhanced-stream` only.
+- **Auth flow**: app-owned identity (replaced Supabase Auth). `JwtService` mints/parses HS256 tokens signed with `APP_JWT_SECRET` (subject = user UUID, `email` claim); it fails fast at startup if the placeholder secret is used outside the `test` profile. `AuthService` handles signup (atomic user + org + owner membership + profile) and login — passwords are bcrypt hashed against the `User` entity (`hak_auth_users`). `JwtAuthFilter` validates the token, looks up the `OrgMember` by userId, and builds an `AuthenticatedUser(userId, email, orgId, orgRole)` principal; a valid token with no org membership is rejected (403) on org-scoped routes. `SecurityConfig` is stateless; public routes are `/api/health`, `/api/auth/**` (signup/login), `/api/config`, and SPA assets — everything else requires auth. The SSE route accepts a `?access_token=` query param, scoped to `/api/search/enhanced-stream` only.
 
 - **Multi-tenancy**: `org_id` lives on tenant-scoped entities; repositories use `findByIdAndOrgId` finders, and `OrgGuardService` centralizes org-isolation assertions. A null orgId blocks access to org-scoped endpoints.
 

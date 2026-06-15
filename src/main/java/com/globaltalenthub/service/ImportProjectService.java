@@ -37,7 +37,7 @@ public class ImportProjectService {
     public record ImportResult(Long searchQueryId, int imported, int skipped, List<String> errors) {}
 
     @Transactional
-    public ImportResult importProject(Map<String, Object> body, String orgId, String userId) {
+    public ImportResult importProject(Map<String, Object> body, UUID orgId, UUID userId) {
         Object recordsObj = body.get("records");
         Object mappingsObj = body.get("mappings");
         if (!(recordsObj instanceof List<?> records) || records.isEmpty()) {

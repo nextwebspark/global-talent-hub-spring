@@ -5,12 +5,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
-public interface OrgMemberRepository extends JpaRepository<OrgMember, String> {
+public interface OrgMemberRepository extends JpaRepository<OrgMember, UUID> {
 
-    Optional<OrgMember> findByUserId(String userId);
+    Optional<OrgMember> findByUserId(UUID userId);
 
-    List<OrgMember> findByOrgId(String orgId);
+    List<OrgMember> findByOrgId(UUID orgId);
 
-    long countByOrgIdAndRole(String orgId, String role);
+    long countByOrgIdAndRole(UUID orgId, String role);
 }

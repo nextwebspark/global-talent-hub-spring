@@ -1,5 +1,7 @@
 package com.globaltalenthub.service;
 
+import java.util.UUID;
+
 import com.globaltalenthub.entity.Company;
 import com.globaltalenthub.entity.SearchQuery;
 import com.globaltalenthub.repository.CompanyRepository;
@@ -33,7 +35,7 @@ public class SearchEnrichService {
     private final SectorService sectorService;
 
     @Transactional
-    public Map<String, Object> enrichAll(Long searchQueryId, String orgId) {
+    public Map<String, Object> enrichAll(Long searchQueryId, UUID orgId) {
         SearchQuery sq = searchQueryRepo.findByIdAndOrgId(searchQueryId, orgId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Search not found"));
 

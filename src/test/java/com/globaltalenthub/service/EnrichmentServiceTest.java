@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static com.globaltalenthub.TestIds.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -39,12 +40,12 @@ class EnrichmentServiceTest {
     @InjectMocks EnrichmentService service;
 
     private void searchExists() {
-        when(searchQueryRepo.findByIdAndOrgId(1L, "org-1")).thenReturn(Optional.of(new SearchQuery()));
+        when(searchQueryRepo.findByIdAndOrgId(1L, uuid("org-1"))).thenReturn(Optional.of(new SearchQuery()));
     }
 
     @Test
     void missingRequiredFields_throws400() {
-        assertThatThrownBy(() -> service.importCandidate(Map.of("name", "Jane"), "org-1"))
+        assertThatThrownBy(() -> service.importCandidate(Map.of("name", "Jane"), uuid("org-1")))
             .isInstanceOf(ResponseStatusException.class).hasMessageContaining("required");
     }
 
@@ -56,7 +57,7 @@ class EnrichmentServiceTest {
         existing.setCompanyId(9L);
         when(executiveRepo.findByClockworkId("cw-1")).thenReturn(Optional.of(existing));
 
-        var result = service.importCandidate(Map.of("searchId", 1, "clockworkId", "cw-1", "name", "Jane"), "org-1");
+        var result = service.importCandidate(Map.of("searchId", 1, "clockworkId", "cw-1", "name", "Jane"), uuid("org-1"));
 
         assertThat(result.alreadyExisted()).isTrue();
         assertThat(result.executiveId()).isEqualTo(50L);
@@ -70,7 +71,7 @@ class EnrichmentServiceTest {
         Company c = new Company();
         c.setId(7L);
         c.setName("Acme Bank");
-        when(companyRepo.findBySearchQueryIdAndOrgId(1L, "org-1")).thenReturn(List.of(c));
+        when(companyRepo.findBySearchQueryIdAndOrgId(1L, uuid("org-1"))).thenReturn(List.of(c));
         when(executiveRepo.save(any())).thenAnswer(i -> {
             Executive e = i.getArgument(0);
             e.setId(60L);
@@ -78,7 +79,7 @@ class EnrichmentServiceTest {
         });
 
         var result = service.importCandidate(Map.of("searchId", 1, "clockworkId", "cw-2",
-            "name", "John CFO", "company", "acme bank"), "org-1");
+            "name", "John CFO", "company", "acme bank"), uuid("org-1"));
 
         assertThat(result.companyId()).isEqualTo(7L);
         assertThat(result.alreadyExisted()).isFalse();
@@ -89,7 +90,7 @@ class EnrichmentServiceTest {
     void researchesAndCreatesCompany_whenNotInSearch() {
         searchExists();
         when(executiveRepo.findByClockworkId("cw-3")).thenReturn(Optional.empty());
-        when(companyRepo.findBySearchQueryIdAndOrgId(1L, "org-1")).thenReturn(List.of());
+        when(companyRepo.findBySearchQueryIdAndOrgId(1L, uuid("org-1"))).thenReturn(List.of());
         when(classifier.classify(anyString())).thenReturn(
             "{\"name\":\"Researched Co\",\"sector\":\"Banking\",\"country\":\"UAE\",\"confidence\":8}");
         when(sectorService.normalizeOrInfer(anyString(), any()))
@@ -106,7 +107,7 @@ class EnrichmentServiceTest {
         });
 
         var result = service.importCandidate(Map.of("searchId", 1, "clockworkId", "cw-3",
-            "name", "Sarah CEO", "company", "Researched Co"), "org-1");
+            "name", "Sarah CEO", "company", "Researched Co"), uuid("org-1"));
 
         assertThat(result.companyId()).isEqualTo(80L);
         verify(companyRepo).save(any(Company.class));
@@ -116,10 +117,10 @@ class EnrichmentServiceTest {
     void noCompanyAndEmptySearch_throws400() {
         searchExists();
         when(executiveRepo.findByClockworkId("cw-4")).thenReturn(Optional.empty());
-        when(companyRepo.findBySearchQueryIdAndOrgId(1L, "org-1")).thenReturn(List.of());
+        when(companyRepo.findBySearchQueryIdAndOrgId(1L, uuid("org-1"))).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.importCandidate(
-            Map.of("searchId", 1, "clockworkId", "cw-4", "name", "Nobody"), "org-1"))
+            Map.of("searchId", 1, "clockworkId", "cw-4", "name", "Nobody"), uuid("org-1")))
             .isInstanceOf(ResponseStatusException.class).hasMessageContaining("No company available");
     }
 }

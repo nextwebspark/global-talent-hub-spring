@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /** Profile, login activity, organization, members. Port of settings.ts. */
 @RestController
@@ -71,7 +72,7 @@ public class SettingsController {
     }
 
     @PatchMapping("/api/org/members/{id}")
-    public Map<String, OrgMember> updateMember(@PathVariable String id, @RequestBody Map<String, Object> body,
+    public Map<String, OrgMember> updateMember(@PathVariable UUID id, @RequestBody Map<String, Object> body,
                                                @AuthenticationPrincipal AuthenticatedUser user) {
         String role = body.get("role") == null ? "" : body.get("role").toString();
         return Map.of("member", service.updateMemberRole(id, user.orgId(), user.orgRole(), role));
@@ -79,7 +80,7 @@ public class SettingsController {
 
     @DeleteMapping("/api/org/members/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteMember(@PathVariable String id, @AuthenticationPrincipal AuthenticatedUser user) {
+    public void deleteMember(@PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser user) {
         service.deleteMember(id, user.orgId(), user.orgRole());
     }
 

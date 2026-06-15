@@ -1,5 +1,7 @@
 package com.globaltalenthub.service;
 
+import java.util.UUID;
+
 import com.globaltalenthub.entity.Executive;
 import com.globaltalenthub.entity.Remuneration;
 import com.globaltalenthub.repository.ExecutiveRepository;
@@ -30,20 +32,20 @@ public class ExecutiveService {
     private final OrgGuardService orgGuard;
     private final RemunerationParserService remunerationParser;
 
-    public List<Executive> getByCompany(Long companyId, String orgId) {
+    public List<Executive> getByCompany(Long companyId, UUID orgId) {
         orgGuard.assertCompanyInOrg(companyId, orgId);
         return executiveRepo.findByCompanyIdAndOrgId(companyId, orgId);
     }
 
     @Transactional
-    public Executive create(Executive executive, String orgId) {
+    public Executive create(Executive executive, UUID orgId) {
         orgGuard.assertCompanyInOrg(executive.getCompanyId(), orgId);
         executive.setOrgId(orgId);
         return executiveRepo.save(executive);
     }
 
     @Transactional
-    public Executive updateManual(Long id, Map<String, Object> patch, String orgId) {
+    public Executive updateManual(Long id, Map<String, Object> patch, UUID orgId) {
         Executive e = executiveRepo.findByIdAndOrgId(id, orgId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Executive not found"));
         applyPatch(e, patch);
@@ -62,7 +64,7 @@ public class ExecutiveService {
     }
 
     @Transactional
-    public void delete(Long id, String orgId) {
+    public void delete(Long id, UUID orgId) {
         orgGuard.assertExecutiveInOrg(id, orgId);
         executiveRepo.deleteById(id);
     }

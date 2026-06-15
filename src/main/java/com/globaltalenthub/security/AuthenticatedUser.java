@@ -1,3 +1,5 @@
 package com.globaltalenthub.security;
 
-public record AuthenticatedUser(String userId, String email, String orgId, String orgRole) {}
+import java.util.UUID;
+
+public record AuthenticatedUser(UUID userId, String email, UUID orgId, String orgRole) {}

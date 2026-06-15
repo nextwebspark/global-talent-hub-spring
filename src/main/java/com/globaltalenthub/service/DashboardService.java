@@ -1,5 +1,7 @@
 package com.globaltalenthub.service;
 
+import java.util.UUID;
+
 import com.globaltalenthub.entity.Company;
 import com.globaltalenthub.entity.Executive;
 import com.globaltalenthub.entity.Remuneration;
@@ -69,7 +71,7 @@ public class DashboardService {
         return "Unknown";
     }
 
-    public Map<String, Object> dashboard(Long searchId, String orgId) {
+    public Map<String, Object> dashboard(Long searchId, UUID orgId) {
         SearchQuery sq = searchQueryRepo.findByIdAndOrgId(searchId, orgId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Search not found"));
         List<Company> companies = companyRepo.findBySearchQueryIdAndOrgId(searchId, orgId);

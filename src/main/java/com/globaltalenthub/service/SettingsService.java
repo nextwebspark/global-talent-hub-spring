@@ -31,12 +31,12 @@ public class SettingsService {
     private final LoginEventRepository loginEventRepo;
 
     // ── Profile ───────────────────────────────────────────────────────────────
-    public UserProfile getProfile(String userId) {
+    public UserProfile getProfile(UUID userId) {
         return profileRepo.findById(userId).orElse(null);
     }
 
     @Transactional
-    public UserProfile upsertProfile(String userId, Map<String, Object> body) {
+    public UserProfile upsertProfile(UUID userId, Map<String, Object> body) {
         UserProfile p = profileRepo.findById(userId).orElseGet(() -> {
             UserProfile np = new UserProfile();
             np.setUserId(userId);
@@ -58,9 +58,9 @@ public class SettingsService {
 
     // ── Login activity ──────────────────────────────────────────────────────────
     @Transactional
-    public void recordLoginEvent(String userId, String orgId, String ip, String userAgent) {
+    public void recordLoginEvent(UUID userId, UUID orgId, String ip, String userAgent) {
         LoginEvent e = new LoginEvent();
-        e.setId(UUID.randomUUID().toString());
+        e.setId(UUID.randomUUID());
         e.setUserId(userId);
         e.setOrgId(orgId);
         e.setAt(java.time.LocalDateTime.now());
@@ -69,17 +69,17 @@ public class SettingsService {
         loginEventRepo.save(e);
     }
 
-    public List<LoginEvent> loginEvents(String userId) {
+    public List<LoginEvent> loginEvents(UUID userId) {
         return loginEventRepo.findByUserIdOrderByAtDesc(userId).stream().limit(10).toList();
     }
 
     // ── Organization ─────────────────────────────────────────────────────────────
-    public Organization getOrganization(String orgId) {
+    public Organization getOrganization(UUID orgId) {
         return organizationRepo.findById(orgId).orElse(null);
     }
 
     @Transactional
-    public Organization updateOrganization(String orgId, String orgRole, Map<String, Object> body) {
+    public Organization updateOrganization(UUID orgId, String orgRole, Map<String, Object> body) {
         requireAdmin(orgRole);
         Organization o = organizationRepo.findById(orgId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Organization not found"));
@@ -93,12 +93,12 @@ public class SettingsService {
     }
 
     // ── Members ───────────────────────────────────────────────────────────────────
-    public List<OrgMember> members(String orgId) {
+    public List<OrgMember> members(UUID orgId) {
         return orgMemberRepo.findByOrgId(orgId);
     }
 
     @Transactional
-    public OrgMember updateMemberRole(String memberId, String orgId, String orgRole, String role) {
+    public OrgMember updateMemberRole(UUID memberId, UUID orgId, String orgRole, String role) {
         requireAdmin(orgRole);
         if (!ROLES.contains(role)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid role");
@@ -113,7 +113,7 @@ public class SettingsService {
     }
 
     @Transactional
-    public void deleteMember(String memberId, String orgId, String orgRole) {
+    public void deleteMember(UUID memberId, UUID orgId, String orgRole) {
         requireAdmin(orgRole);
         OrgMember member = memberInOrg(memberId, orgId);
         if ("owner".equals(member.getRole())
@@ -123,7 +123,7 @@ public class SettingsService {
         orgMemberRepo.delete(member);
     }
 
-    private OrgMember memberInOrg(String memberId, String orgId) {
+    private OrgMember memberInOrg(UUID memberId, UUID orgId) {
         OrgMember m = orgMemberRepo.findById(memberId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found"));
         if (!orgId.equals(m.getOrgId())) {

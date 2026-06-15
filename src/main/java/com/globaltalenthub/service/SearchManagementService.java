@@ -1,5 +1,7 @@
 package com.globaltalenthub.service;
 
+import java.util.UUID;
+
 import com.globaltalenthub.entity.Company;
 import com.globaltalenthub.entity.Executive;
 import com.globaltalenthub.entity.SearchQuery;
@@ -32,7 +34,26 @@ public class SearchManagementService {
     private final ExecutiveRepository executiveRepo;
     private final CoordinateFallbackService coordinateFallbackService;
 
-    public record HistoryEntry(SearchQuery searchQuery, long companyCount) {}
+    // Flat shape matching the client SearchHistoryItem (id, query, …, createdAt).
+    // A nested {searchQuery,…} shape leaves the client's top-level fields undefined,
+    // which makes date formatting (formatDistanceToNow) throw on an Invalid Date.
+    public record HistoryEntry(
+        Long id,
+        String query,
+        String parsedCriteria,
+        Integer resultCount,
+        long companyCount,
+        String status,
+        Integer selectedCount,
+        java.time.LocalDateTime createdAt,
+        java.time.LocalDateTime updatedAt
+    ) {
+        static HistoryEntry of(SearchQuery q, long companyCount) {
+            return new HistoryEntry(q.getId(), q.getQuery(), q.getParsedCriteria(),
+                q.getResultCount(), companyCount, q.getStatus(), q.getSelectedCount(),
+                q.getCreatedAt(), q.getUpdatedAt());
+        }
+    }
 
     public record CompanyWithExecs(Company company, List<Executive> executives) {}
 
@@ -40,15 +61,15 @@ public class SearchManagementService {
 
     public record AddToProjectResult(Long searchQueryId, String query, int companiesAdded, int executivesAdded) {}
 
-    public List<HistoryEntry> history(String orgId) {
+    public List<HistoryEntry> history(UUID orgId) {
         return searchQueryRepo.findByOrgIdOrderByCreatedAtDesc(orgId).stream()
-            .map(q -> new HistoryEntry(q, companyRepo.findBySearchQueryIdAndOrgId(q.getId(), orgId).size()))
+            .map(q -> HistoryEntry.of(q, companyRepo.findBySearchQueryIdAndOrgId(q.getId(), orgId).size()))
             .limit(50)
             .toList();
     }
 
     /** Full results with coordinate fallback applied per company (mirrors search.ts). */
-    public FullResults fullResults(Long searchQueryId, String orgId) {
+    public FullResults fullResults(Long searchQueryId, UUID orgId) {
         SearchQuery sq = searchQueryRepo.findByIdAndOrgId(searchQueryId, orgId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Search results not found"));
         List<CompanyWithExecs> companies = new ArrayList<>();
@@ -63,28 +84,28 @@ public class SearchManagementService {
     }
 
     @Transactional
-    public void saveSatelliteHierarchies(Long id, Map<String, Object> data, String orgId) {
+    public void saveSatelliteHierarchies(Long id, Map<String, Object> data, UUID orgId) {
         SearchQuery sq = require(id, orgId);
         sq.setSatelliteHierarchies(data);
         searchQueryRepo.save(sq);
     }
 
     @Transactional
-    public void saveSatelliteOrders(Long id, Map<String, Object> data, String orgId) {
+    public void saveSatelliteOrders(Long id, Map<String, Object> data, UUID orgId) {
         SearchQuery sq = require(id, orgId);
         sq.setSatelliteOrders(data);
         searchQueryRepo.save(sq);
     }
 
     @Transactional
-    public void saveMapPositions(Long id, Map<String, Object> data, String orgId) {
+    public void saveMapPositions(Long id, Map<String, Object> data, UUID orgId) {
         SearchQuery sq = require(id, orgId);
         sq.setMapPositions(data);
         searchQueryRepo.save(sq);
     }
 
     @Transactional
-    public void saveTableConfig(Long id, Map<String, Object> data, String orgId) {
+    public void saveTableConfig(Long id, Map<String, Object> data, UUID orgId) {
         SearchQuery sq = require(id, orgId);
         sq.setTableConfig(data);
         searchQueryRepo.save(sq);
@@ -95,7 +116,7 @@ public class SearchManagementService {
      * re-affirming their search_query_id. Mirrors add-to-project in search.ts.
      */
     @Transactional
-    public AddToProjectResult addToProject(List<Long> companyIds, String sessionId, Long searchQueryId, String orgId) {
+    public AddToProjectResult addToProject(List<Long> companyIds, String sessionId, Long searchQueryId, UUID orgId) {
         if (companyIds == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "companyIds array is required");
         }
@@ -130,7 +151,7 @@ public class SearchManagementService {
         return new AddToProjectResult(sq.getId(), sq.getQuery(), owned.size(), totalExecutives);
     }
 
-    private SearchQuery require(Long id, String orgId) {
+    private SearchQuery require(Long id, UUID orgId) {
         return searchQueryRepo.findByIdAndOrgId(id, orgId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Search query not found"));
     }
