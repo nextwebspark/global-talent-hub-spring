@@ -6,7 +6,7 @@ name: Deploy to Cloud Run (prod)
 # GCP_WIF_PROVIDER, GCP_DEPLOY_SA, MAPBOX_ACCESS_TOKEN.
 on:
   push:
-    branches: [main]
+    branches: [main, feature/setup-ci-cd]   # TEMP: feature branch for pre-merge test — REMOVE before merge
   workflow_dispatch: {}
 
 # Avoid overlapping deploys; let an in-flight run finish before the next.
@@ -21,7 +21,8 @@ env:
   # Non-secret runtime config. Secrets (DB password, JWT) come from Secret Manager.
   DATABASE_URL: jdbc:postgresql://aws-1-eu-central-1.pooler.supabase.com:5432/postgres
   DATABASE_USERNAME: postgres.nkfiqwcwsjmzmakhnqdl
-  CORS_ORIGINS: https://global-talent-hub-ui.vercel.app
+  # Vercel prod origin + localhost:5173 so devs can hit prod backend from a local Vite UI.
+  CORS_ORIGINS: https://global-talent-hub-ui.vercel.app,http://localhost:5173
   # Public Mapbox token (pk.*). Stored as a GitHub Actions repo variable to keep it
   # out of source (GitHub push protection flags pk.* tokens regardless of scope).
   MAPBOX_ACCESS_TOKEN: ${{ vars.MAPBOX_ACCESS_TOKEN }}
@@ -31,7 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write   # required for WIF OIDC token exchange
+      id-token: write          # required for WIF OIDC token exchange
+      security-events: write   # upload Trivy SARIF to code scanning
 
     steps:
       - uses: actions/checkout@v4
@@ -44,8 +46,19 @@ jobs:
           cache: maven
 
       # Test gate: H2 + mocked LLM, no live creds (test profile auto-activates).
+      # JaCoCo agent runs during the test phase; report lands at target/site/jacoco/.
       - name: Run tests
         run: mvn -B test
+
+      # Coverage report (report-only — never fails the build). Public repo needs no token;
+      # for a private repo set CODECOV_TOKEN as a repo secret.
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: target/site/jacoco/jacoco.xml
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Authenticate to GCP (Workload Identity Federation)
         uses: google-github-actions/auth@v2
@@ -76,3 +89,31 @@ jobs:
           gcloud run services describe "$SERVICE" \
             --project "$PROJECT" --region "$REGION" \
             --format='value(status.url)'
+
+      # Resolve the exact image Cloud Run is serving (built by Cloud Build above).
+      - name: Get deployed image ref
+        id: image
+        run: |
+          IMAGE=$(gcloud run services describe "$SERVICE" \
+            --project "$PROJECT" --region "$REGION" \
+            --format='value(spec.template.spec.containers[0].image)')
+          echo "ref=$IMAGE" >> "$GITHUB_OUTPUT"
+          # Let Trivy pull the image from Artifact Registry.
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      # Vulnerability scan of the deployed container (report-only: never fails the build).
+      # Results also appear under the repo's Security > Code scanning tab via SARIF.
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: ${{ steps.image.outputs.ref }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
