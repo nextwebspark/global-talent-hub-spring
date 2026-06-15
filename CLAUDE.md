@@ -57,6 +57,14 @@ Layering: **Controller → Service → Repository (Spring Data JPA) → Entity**
 - Review/testing docs at the root — `CODE_REVIEW.md`, `SECURITY_REVIEW.md`, `INTEGRATION_TESTING.md` — plus `docs/auth-jwt.md` for the app-owned JWT design, provide background context.
 - Stale comment in `pom.xml` (line 110) still labels the `jjwt` deps as "Supabase HS256"; auth was rewritten to app-owned JWT — the deps stay, the comment is misleading.
 
+## Deploy / CI-CD
+
+Backend runs on **Cloud Run** (`gth-api`, project `hak-talent-mapping`, region `us-central1`), built from the root `Dockerfile` via Cloud Build (`gcloud run deploy --source .`). It scales to zero, authenticates to Vertex AI via the runtime service account's ADC (no key file), and reads all config from env vars / Secret Manager.
+
+- **Runtime config**: non-secret values are passed as `--set-env-vars` (`SPRING_PROFILES_ACTIVE=prod`, `DATABASE_URL`, `DATABASE_USERNAME`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `MAPBOX_ACCESS_TOKEN`, `APP_CORS_ALLOWED_ORIGINS`). Secrets come from Secret Manager via `--set-secrets`: `DATABASE_PASSWORD=gth-db-password:latest`, `APP_JWT_SECRET=gth-jwt-secret:latest`. Frontend lives on Vercel (`global-talent-hub-ui.vercel.app`); its origin must be in `APP_CORS_ALLOWED_ORIGINS`.
+
+- **CI/CD**: `.github/workflows/deploy-prod.yml` auto-deploys prod on push to `main` — `mvn test` → Cloud Build → `gcloud run deploy`. Auth is **keyless** via Workload Identity Federation (GitHub OIDC), no SA JSON key. Three GitHub Actions repo **variables** drive it: `GCP_WIF_PROVIDER`, `GCP_DEPLOY_SA` (`github-deployer@…`), and `MAPBOX_ACCESS_TOKEN` (public `pk.*` token, kept out of source so push protection doesn't flag it). One-time setup is automated in `scripts/setup-wif.sh` (creates the deploy SA, WIF pool/provider restricted to this repo, and IAM bindings); run it once, then set the repo variables it prints.
+
 ## Behavioral Guidelines
 
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.

@@ -1,0 +1,37 @@
+name: CI (tests + coverage)
+
+# Runs on pull requests: tests + JaCoCo coverage, posted as a PR comment.
+# No deploy here — deploy-prod.yml handles main.
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write   # for the coverage comment
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # H2 + mocked LLM (test profile auto-activates). JaCoCo agent runs during
+      # the test phase; report lands at target/site/jacoco/jacoco.xml.
+      - name: Run tests
+        run: mvn -B test
+
+      # Posts/updates a coverage comment on the PR. Report-only (no min thresholds).
+      - name: JaCoCo coverage comment
+        uses: madrapps/jacoco-report@v1.7.1
+        with:
+          paths: ${{ github.workspace }}/target/site/jacoco/jacoco.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: Code coverage
