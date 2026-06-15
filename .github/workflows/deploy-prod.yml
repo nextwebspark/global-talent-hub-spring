@@ -6,7 +6,7 @@ name: Deploy to Cloud Run (prod)
 # GCP_WIF_PROVIDER, GCP_DEPLOY_SA, MAPBOX_ACCESS_TOKEN.
 on:
   push:
-    branches: [main, feature/setup-ci-cd]   # TEMP: feature branch for pre-merge test — REMOVE before merge
+    branches: [main]
   workflow_dispatch: {}
 
 # Avoid overlapping deploys; let an in-flight run finish before the next.
