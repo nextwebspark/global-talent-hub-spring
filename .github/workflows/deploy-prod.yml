@@ -1,0 +1,78 @@
+name: Deploy to Cloud Run (prod)
+
+# Auto-deploy on push to main: test -> build (Cloud Build) -> deploy.
+# Keyless auth via Workload Identity Federation (no SA JSON key stored here).
+# One-time setup: scripts/setup-wif.sh, then set repo variables
+# GCP_WIF_PROVIDER, GCP_DEPLOY_SA, MAPBOX_ACCESS_TOKEN.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Avoid overlapping deploys; let an in-flight run finish before the next.
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+env:
+  PROJECT: hak-talent-mapping
+  REGION: us-central1
+  SERVICE: gth-api
+  # Non-secret runtime config. Secrets (DB password, JWT) come from Secret Manager.
+  DATABASE_URL: jdbc:postgresql://aws-1-eu-central-1.pooler.supabase.com:5432/postgres
+  DATABASE_USERNAME: postgres.nkfiqwcwsjmzmakhnqdl
+  CORS_ORIGINS: https://global-talent-hub-ui.vercel.app
+  # Public Mapbox token (pk.*). Stored as a GitHub Actions repo variable to keep it
+  # out of source (GitHub push protection flags pk.* tokens regardless of scope).
+  MAPBOX_ACCESS_TOKEN: ${{ vars.MAPBOX_ACCESS_TOKEN }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # required for WIF OIDC token exchange
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # Test gate: H2 + mocked LLM, no live creds (test profile auto-activates).
+      - name: Run tests
+        run: mvn -B test
+
+      - name: Authenticate to GCP (Workload Identity Federation)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      # Build via Cloud Build using the committed Dockerfile (--source .), then deploy.
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --source . \
+            --project "$PROJECT" \
+            --region "$REGION" \
+            --allow-unauthenticated \
+            --memory 1Gi \
+            --cpu 1 \
+            --max-instances 5 \
+            --port 8080 \
+            --set-env-vars "SPRING_PROFILES_ACTIVE=prod,GOOGLE_CLOUD_PROJECT=${PROJECT},GOOGLE_CLOUD_LOCATION=${REGION},DATABASE_URL=${DATABASE_URL},DATABASE_USERNAME=${DATABASE_USERNAME},MAPBOX_ACCESS_TOKEN=${MAPBOX_ACCESS_TOKEN},APP_CORS_ALLOWED_ORIGINS=${CORS_ORIGINS}" \
+            --set-secrets "DATABASE_PASSWORD=gth-db-password:latest,APP_JWT_SECRET=gth-jwt-secret:latest"
+
+      - name: Show service URL
+        run: |
+          gcloud run services describe "$SERVICE" \
+            --project "$PROJECT" --region "$REGION" \
+            --format='value(status.url)'
