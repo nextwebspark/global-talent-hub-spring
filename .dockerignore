@@ -1,0 +1,13 @@
+target/
+.git/
+.gitignore
+*.md
+.idea/
+.vscode/
+*.iml
+# Never ship local secrets / keys into the image build context.
+src/main/resources/application-local.properties
+*-vertex-key.json
+railway-vertex-key.json
+.env
+.env.*
