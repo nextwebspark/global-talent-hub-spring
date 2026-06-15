@@ -23,7 +23,11 @@ AI-powered executive search / talent-mapping SaaS. Spring Boot 3.3.5, Java 21, P
 | Single test class | `mvn test -Dtest=ClassName` |
 | Single test method | `mvn test -Dtest=ClassName#method` |
 
-`mvn test` auto-activates the `test` profile (H2 in-memory, Vertex AI autoconfig excluded). Override the port with `PORT`. Key runtime env vars: `DATABASE_URL`, `APP_JWT_SECRET` (>=32 bytes; `APP_JWT_EXPIRY_SECONDS` optional, default 7d), `GOOGLE_CLOUD_PROJECT`, `CLOCKWORK_*`.
+`mvn test` auto-activates the `test` profile (H2 in-memory, Vertex AI autoconfig excluded). Override the port with `PORT`. Key runtime env vars: `DATABASE_URL`, `DATABASE_USERNAME` / `DATABASE_PASSWORD` (Supabase pooler uses separate creds, required in prod), `APP_JWT_SECRET` (>=32 bytes; `APP_JWT_EXPIRY_SECONDS` optional, default 7d), `GOOGLE_CLOUD_PROJECT`, `CLOCKWORK_*`.
+
+**Profiles**: `dev` (default), `prod`, `test` (auto on `mvn test`), and `local` — `application-local.properties` is gitignored and holds real DB/Vertex creds for local runs; copy from `application-local.properties.example` and activate with `SPRING_PROFILES_ACTIVE=local`. A `railway-vertex-key.json` may sit at repo root; it's covered by the `*-vertex-key.json` gitignore pattern — don't rename or move it in commits.
+
+**Container / Cloud Run**: `Dockerfile` is multi-stage (Maven → `eclipse-temurin:21-jre`), runs as non-root user `spring`, defaults to `SPRING_PROFILES_ACTIVE=prod`, and honors Cloud Run's injected `PORT` (via `server.port=${PORT:5000}`). Image build skips tests — run them in CI/local.
 
 ## Architecture
 
@@ -49,4 +53,72 @@ Layering: **Controller → Service → Repository (Spring Data JPA) → Entity**
 
 - Lombok throughout (`@Slf4j`, etc.). `lombok.config` at the root copies Spring `@Qualifier`/`@Value` annotations onto Lombok-generated constructor parameters.
 - No checkstyle/spotless configured.
-- Review/testing docs at the root — `CODE_REVIEW.md`, `SECURITY_REVIEW.md`, `INTEGRATION_TESTING.md` — provide background context.
+- Shared test-data UUIDs live in `src/test/java/com/globaltalenthub/TestIds.java`. Reuse those constants instead of redeclaring `UUID.fromString(...)` literals per test class.
+- Review/testing docs at the root — `CODE_REVIEW.md`, `SECURITY_REVIEW.md`, `INTEGRATION_TESTING.md` — plus `docs/auth-jwt.md` for the app-owned JWT design, provide background context.
+- Stale comment in `pom.xml` (line 110) still labels the `jjwt` deps as "Supabase HS256"; auth was rewritten to app-owned JWT — the deps stay, the comment is misleading.
+
+## Behavioral Guidelines
+
+Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+
+### 1. Think Before Coding
+
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+### 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+### 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+### 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+---
+
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
