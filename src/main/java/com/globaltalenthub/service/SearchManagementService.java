@@ -34,7 +34,26 @@ public class SearchManagementService {
     private final ExecutiveRepository executiveRepo;
     private final CoordinateFallbackService coordinateFallbackService;
 
-    public record HistoryEntry(SearchQuery searchQuery, long companyCount) {}
+    // Flat shape matching the client SearchHistoryItem (id, query, …, createdAt).
+    // A nested {searchQuery,…} shape leaves the client's top-level fields undefined,
+    // which makes date formatting (formatDistanceToNow) throw on an Invalid Date.
+    public record HistoryEntry(
+        Long id,
+        String query,
+        String parsedCriteria,
+        Integer resultCount,
+        long companyCount,
+        String status,
+        Integer selectedCount,
+        java.time.LocalDateTime createdAt,
+        java.time.LocalDateTime updatedAt
+    ) {
+        static HistoryEntry of(SearchQuery q, long companyCount) {
+            return new HistoryEntry(q.getId(), q.getQuery(), q.getParsedCriteria(),
+                q.getResultCount(), companyCount, q.getStatus(), q.getSelectedCount(),
+                q.getCreatedAt(), q.getUpdatedAt());
+        }
+    }
 
     public record CompanyWithExecs(Company company, List<Executive> executives) {}
 
@@ -44,7 +63,7 @@ public class SearchManagementService {
 
     public List<HistoryEntry> history(UUID orgId) {
         return searchQueryRepo.findByOrgIdOrderByCreatedAtDesc(orgId).stream()
-            .map(q -> new HistoryEntry(q, companyRepo.findBySearchQueryIdAndOrgId(q.getId(), orgId).size()))
+            .map(q -> HistoryEntry.of(q, companyRepo.findBySearchQueryIdAndOrgId(q.getId(), orgId).size()))
             .limit(50)
             .toList();
     }

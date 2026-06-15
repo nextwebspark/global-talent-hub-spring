@@ -2,8 +2,8 @@ package com.globaltalenthub.security;
 
 import com.globaltalenthub.entity.OrgMember;
 import com.globaltalenthub.repository.OrgMemberRepository;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.impl.DefaultClaims;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,80 +14,64 @@ import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.test.util.ReflectionTestUtils;
 
-import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
-import java.util.Date;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static com.globaltalenthub.TestIds.uuid;
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class SupabaseJwtFilterTest {
+class JwtAuthFilterTest {
 
-    private static final String JWT_SECRET = "test-secret-key-that-is-at-least-32-bytes-long-for-hs256";
+    @Mock private JwtService jwtService;
+    @Mock private OrgMemberRepository orgMemberRepo;
 
-    @Mock
-    private OrgMemberRepository orgMemberRepo;
-
-    @Mock
-    private org.springframework.core.env.Environment environment;
-
-    @InjectMocks
-    private SupabaseJwtFilter filter;
+    @InjectMocks private JwtAuthFilter filter;
 
     @BeforeEach
     void setup() {
-        ReflectionTestUtils.setField(filter, "jwtSecret", JWT_SECRET);
         SecurityContextHolder.clearContext();
     }
 
-    private String buildToken(String subject) {
-        return buildToken(subject, null);
-    }
-
-    private String buildToken(String subject, String email) {
-        SecretKey key = Keys.hmacShaKeyFor(JWT_SECRET.getBytes(StandardCharsets.UTF_8));
-        var builder = Jwts.builder()
-            .subject(subject)
-            .issuedAt(new Date())
-            .expiration(new Date(System.currentTimeMillis() + 3_600_000));
-        if (email != null) builder.claim("email", email);
-        return builder.signWith(key).compact();
+    /** Build a Claims object with the given subject + optional email, as JwtService.parse would return. */
+    private io.jsonwebtoken.Claims claims(String subject, String email) {
+        var m = new java.util.HashMap<String, Object>();
+        m.put("sub", subject);
+        if (email != null) m.put("email", email);
+        return new DefaultClaims(m);
     }
 
     @Test
     void noToken_chainsWithoutAuthentication() throws Exception {
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/companies");
         MockHttpServletResponse res = new MockHttpServletResponse();
-        MockFilterChain chain = new MockFilterChain();
 
-        filter.doFilterInternal(req, res, chain);
+        filter.doFilterInternal(req, res, new MockFilterChain());
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         assertThat(res.getStatus()).isEqualTo(200);
+        verifyNoInteractions(jwtService);
     }
 
     @Test
     void validBearerToken_withOrgMembership_setsAuthentication() throws Exception {
         UUID userId = uuid("user-abc");
+        when(jwtService.parse("good-token")).thenReturn(claims(userId.toString(), null));
         OrgMember member = new OrgMember();
         member.setUserId(userId);
         member.setOrgId(uuid("org-xyz"));
         member.setRole("admin");
-
         when(orgMemberRepo.findByUserId(userId)).thenReturn(Optional.of(member));
 
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/companies");
-        req.addHeader("Authorization", "Bearer " + buildToken(userId.toString()));
+        req.addHeader("Authorization", "Bearer good-token");
         MockHttpServletResponse res = new MockHttpServletResponse();
-        MockFilterChain chain = new MockFilterChain();
 
-        filter.doFilterInternal(req, res, chain);
+        filter.doFilterInternal(req, res, new MockFilterChain());
 
         var auth = SecurityContextHolder.getContext().getAuthentication();
         assertThat(auth).isNotNull();
@@ -98,8 +82,9 @@ class SupabaseJwtFilterTest {
     }
 
     @Test
-    void validQueryParamToken_withOrg_setsAuthentication() throws Exception {
+    void validQueryParamToken_onSsePath_setsAuthentication() throws Exception {
         UUID userId = uuid("user-sse");
+        when(jwtService.parse("sse-token")).thenReturn(claims(userId.toString(), null));
         OrgMember member = new OrgMember();
         member.setUserId(userId);
         member.setOrgId(uuid("org-sse"));
@@ -107,29 +92,27 @@ class SupabaseJwtFilterTest {
         when(orgMemberRepo.findByUserId(userId)).thenReturn(Optional.of(member));
 
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/search/enhanced-stream");
-        req.addParameter("access_token", buildToken(userId.toString()));
+        req.addParameter("access_token", "sse-token");
         MockHttpServletResponse res = new MockHttpServletResponse();
-        MockFilterChain chain = new MockFilterChain();
 
-        filter.doFilterInternal(req, res, chain);
+        filter.doFilterInternal(req, res, new MockFilterChain());
 
         var auth = SecurityContextHolder.getContext().getAuthentication();
         assertThat(auth).isNotNull();
-        AuthenticatedUser principal = (AuthenticatedUser) auth.getPrincipal();
-        assertThat(principal.userId()).isEqualTo(userId);
-        assertThat(principal.orgId()).isEqualTo(uuid("org-sse"));
+        assertThat(((AuthenticatedUser) auth.getPrincipal()).userId()).isEqualTo(userId);
     }
 
     @Test
     void emailClaim_populatedOnPrincipal() throws Exception {
         UUID userId = uuid("user-email");
+        when(jwtService.parse("tok")).thenReturn(claims(userId.toString(), "jane@example.com"));
         OrgMember member = new OrgMember();
         member.setUserId(userId);
         member.setOrgId(uuid("org-1"));
         when(orgMemberRepo.findByUserId(userId)).thenReturn(Optional.of(member));
 
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/companies");
-        req.addHeader("Authorization", "Bearer " + buildToken(userId.toString(), "jane@example.com"));
+        req.addHeader("Authorization", "Bearer tok");
         MockHttpServletResponse res = new MockHttpServletResponse();
 
         filter.doFilterInternal(req, res, new MockFilterChain());
@@ -141,12 +124,13 @@ class SupabaseJwtFilterTest {
 
     @Test
     void invalidToken_returns401() throws Exception {
+        when(jwtService.parse(anyString())).thenThrow(new JwtException("bad"));
+
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/companies");
         req.addHeader("Authorization", "Bearer this-is-not-a-valid-jwt");
         MockHttpServletResponse res = new MockHttpServletResponse();
-        MockFilterChain chain = new MockFilterChain();
 
-        filter.doFilterInternal(req, res, chain);
+        filter.doFilterInternal(req, res, new MockFilterChain());
 
         assertThat(res.getStatus()).isEqualTo(401);
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
@@ -154,9 +138,10 @@ class SupabaseJwtFilterTest {
 
     @Test
     void validSignature_nonUuidSubject_returns401() throws Exception {
-        // Signature valid but 'sub' is not a UUID -> UUID.fromString throws -> 401.
+        when(jwtService.parse("tok")).thenReturn(claims("not-a-uuid", null));
+
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/companies");
-        req.addHeader("Authorization", "Bearer " + buildToken("not-a-uuid"));
+        req.addHeader("Authorization", "Bearer tok");
         MockHttpServletResponse res = new MockHttpServletResponse();
 
         filter.doFilterInternal(req, res, new MockFilterChain());
@@ -168,10 +153,11 @@ class SupabaseJwtFilterTest {
     @Test
     void validToken_noOrgMembership_orgScopedPath_returns403() throws Exception {
         UUID userId = uuid("orphan-user");
+        when(jwtService.parse("tok")).thenReturn(claims(userId.toString(), null));
         when(orgMemberRepo.findByUserId(userId)).thenReturn(Optional.empty());
 
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/companies");
-        req.addHeader("Authorization", "Bearer " + buildToken(userId.toString()));
+        req.addHeader("Authorization", "Bearer tok");
         MockHttpServletResponse res = new MockHttpServletResponse();
 
         filter.doFilterInternal(req, res, new MockFilterChain());
@@ -184,15 +170,16 @@ class SupabaseJwtFilterTest {
     @Test
     void validToken_noOrgMembership_authBootstrapPath_isAllowed() throws Exception {
         UUID userId = uuid("new-user");
+        when(jwtService.parse("tok")).thenReturn(claims(userId.toString(), null));
         when(orgMemberRepo.findByUserId(userId)).thenReturn(Optional.empty());
 
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/auth/me");
-        req.addHeader("Authorization", "Bearer " + buildToken(userId.toString()));
+        req.addHeader("Authorization", "Bearer tok");
         MockHttpServletResponse res = new MockHttpServletResponse();
 
         filter.doFilterInternal(req, res, new MockFilterChain());
 
-        // Bootstrap path is exempt — a user without an org can call it to create one.
+        // Bootstrap path is exempt — a user without an org can call it.
         AuthenticatedUser principal = (AuthenticatedUser)
             SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         assertThat(principal.userId()).isEqualTo(userId);
@@ -200,82 +187,16 @@ class SupabaseJwtFilterTest {
     }
 
     @Test
-    void verifySecret_placeholderInNonTestProfile_throws() {
-        SupabaseJwtFilter f = new SupabaseJwtFilter(orgMemberRepo, environment);
-        ReflectionTestUtils.setField(f, "jwtSecret", "placeholder-for-tests");
-        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
-
-        assertThatThrownBy(f::verifySecret)
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("SUPABASE_JWT_SECRET");
-    }
-
-    @Test
-    void verifySecret_placeholderInTestProfile_ok() {
-        SupabaseJwtFilter f = new SupabaseJwtFilter(orgMemberRepo, environment);
-        ReflectionTestUtils.setField(f, "jwtSecret", "placeholder-for-tests");
-        when(environment.getActiveProfiles()).thenReturn(new String[]{"test"});
-
-        f.verifySecret(); // no throw
-    }
-
-    // ── S4: query-param token only on the SSE route ──────────────────────────────
-    @Test
     void queryParamToken_onNonSsePath_isIgnored() throws Exception {
         // Token supplied as ?access_token= on a normal API path must NOT authenticate.
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/companies");
-        req.addParameter("access_token", buildToken("user-x"));
+        req.addParameter("access_token", "tok");
         MockHttpServletResponse res = new MockHttpServletResponse();
 
         filter.doFilterInternal(req, res, new MockFilterChain());
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
-        assertThat(res.getStatus()).isEqualTo(200); // chained through unauthenticated
-        verifyNoInteractions(orgMemberRepo);
-    }
-
-    // ── S5: audience binding ──────────────────────────────────────────────────────
-    @Test
-    void wrongAudience_isRejected() throws Exception {
-        ReflectionTestUtils.setField(filter, "jwtAudience", "authenticated");
-
-        SecretKey key = Keys.hmacShaKeyFor(JWT_SECRET.getBytes(StandardCharsets.UTF_8));
-        String token = Jwts.builder().subject("user-aud").audience().add("some-other-app").and()
-            .issuedAt(new Date()).expiration(new Date(System.currentTimeMillis() + 3_600_000))
-            .signWith(key).compact();
-
-        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/companies");
-        req.addHeader("Authorization", "Bearer " + token);
-        MockHttpServletResponse res = new MockHttpServletResponse();
-
-        filter.doFilterInternal(req, res, new MockFilterChain());
-
-        assertThat(res.getStatus()).isEqualTo(401);
-        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
-    }
-
-    @Test
-    void correctAudience_isAccepted() throws Exception {
-        ReflectionTestUtils.setField(filter, "jwtAudience", "authenticated");
-        UUID userId = uuid("user-aud2");
-        OrgMember member = new OrgMember();
-        member.setUserId(userId);
-        member.setOrgId(uuid("org-1"));
-        when(orgMemberRepo.findByUserId(userId)).thenReturn(Optional.of(member));
-
-        SecretKey key = Keys.hmacShaKeyFor(JWT_SECRET.getBytes(StandardCharsets.UTF_8));
-        String token = Jwts.builder().subject(userId.toString()).audience().add("authenticated").and()
-            .issuedAt(new Date()).expiration(new Date(System.currentTimeMillis() + 3_600_000))
-            .signWith(key).compact();
-
-        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/companies");
-        req.addHeader("Authorization", "Bearer " + token);
-        MockHttpServletResponse res = new MockHttpServletResponse();
-
-        filter.doFilterInternal(req, res, new MockFilterChain());
-
-        var auth = SecurityContextHolder.getContext().getAuthentication();
-        assertThat(auth).isNotNull();
-        assertThat(((AuthenticatedUser) auth.getPrincipal()).userId()).isEqualTo(userId);
+        assertThat(res.getStatus()).isEqualTo(200);
+        verifyNoInteractions(jwtService, orgMemberRepo);
     }
 }

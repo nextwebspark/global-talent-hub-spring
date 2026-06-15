@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(controllers = CompanyController.class,
     excludeFilters = @org.springframework.context.annotation.ComponentScan.Filter(
         type = org.springframework.context.annotation.FilterType.ASSIGNABLE_TYPE,
-        classes = {com.globaltalenthub.security.SupabaseJwtFilter.class,
+        classes = {com.globaltalenthub.security.JwtAuthFilter.class,
                    com.globaltalenthub.config.SecurityConfig.class}))
 class CompanyControllerTest {
 

@@ -35,7 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(controllers = ExecutiveController.class,
     excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE,
-        classes = {com.globaltalenthub.security.SupabaseJwtFilter.class,
+        classes = {com.globaltalenthub.security.JwtAuthFilter.class,
                    com.globaltalenthub.config.SecurityConfig.class}))
 class ExecutiveControllerTest {
 

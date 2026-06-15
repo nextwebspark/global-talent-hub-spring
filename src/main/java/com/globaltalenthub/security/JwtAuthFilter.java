@@ -4,32 +4,27 @@ import com.globaltalenthub.entity.OrgMember;
 import com.globaltalenthub.repository.OrgMemberRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import jakarta.annotation.PostConstruct;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.env.Environment;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.UUID;
 import java.util.List;
+import java.util.UUID;
 
+/**
+ * Validates the application's own JWT (issued by {@link JwtService}) and attaches
+ * the authenticated principal. Replaces the former Supabase-token filter.
+ */
 @Component
 @RequiredArgsConstructor
-public class SupabaseJwtFilter extends OncePerRequestFilter {
-
-    /** Default in application.yml for tests; must never reach production. */
-    private static final String PLACEHOLDER_SECRET = "placeholder-for-tests";
+public class JwtAuthFilter extends OncePerRequestFilter {
 
     /** Paths reachable without an org (auth bootstrap + public config/health). */
     private static final List<String> ORG_EXEMPT_PREFIXES = List.of("/api/auth/", "/api/config", "/api/health");
@@ -37,29 +32,16 @@ public class SupabaseJwtFilter extends OncePerRequestFilter {
     /** Only this route may carry the JWT as a query param (EventSource can't set headers). */
     private static final String SSE_PATH = "/api/search/enhanced-stream";
 
-    @Value("${app.supabase.jwt-secret}")
-    private String jwtSecret;
-
-    /** Pinned audience (Supabase standard "authenticated"). Empty disables the check. */
-    @Value("${app.supabase.jwt-audience:authenticated}")
-    private String jwtAudience;
-
-    /** Pinned issuer (e.g. https://<project>.supabase.co/auth/v1). Empty = not enforced. */
-    @Value("${app.supabase.jwt-issuer:}")
-    private String jwtIssuer;
-
+    private final JwtService jwtService;
     private final OrgMemberRepository orgMemberRepo;
-    private final Environment environment;
 
-    // Fail fast: a placeholder secret in a non-test profile means every forged token
-    // would validate. Refuse to start.
-    @PostConstruct
-    void verifySecret() {
-        boolean testProfile = List.of(environment.getActiveProfiles()).contains("test");
-        if (!testProfile && PLACEHOLDER_SECRET.equals(jwtSecret)) {
-            throw new IllegalStateException(
-                "SUPABASE_JWT_SECRET is unset (placeholder default). Set it before starting in a non-test profile.");
-        }
+    // SSE (SseEmitter) completes via an ASYNC dispatch, on which Spring Security
+    // re-runs the filter chain. OncePerRequestFilter skips async dispatches by
+    // default, so without this the re-dispatch has no authentication and the
+    // AuthorizationFilter denies it (AccessDenied after the stream finishes).
+    @Override
+    protected boolean shouldNotFilterAsyncDispatch() {
+        return false;
     }
 
     private String extractToken(HttpServletRequest req) {
@@ -87,15 +69,7 @@ public class SupabaseJwtFilter extends OncePerRequestFilter {
         }
 
         try {
-            var parser = Jwts.parser()
-                .verifyWith(Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8)));
-            // Bind to expected audience/issuer so a token signed with the same secret but
-            // from a different project / of a different type is rejected (not just valid sig).
-            if (jwtAudience != null && !jwtAudience.isBlank()) parser.requireAudience(jwtAudience);
-            if (jwtIssuer != null && !jwtIssuer.isBlank()) parser.requireIssuer(jwtIssuer);
-            Claims claims = parser.build()
-                .parseSignedClaims(token)
-                .getPayload();
+            Claims claims = jwtService.parse(token);
 
             UUID userId = UUID.fromString(claims.getSubject());
             Object emailClaim = claims.get("email");

@@ -27,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** S1 tenant-isolation tests for Clockwork endpoints. */
 @WebMvcTest(controllers = ClockworkController.class,
     excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE,
-        classes = {com.globaltalenthub.security.SupabaseJwtFilter.class,
+        classes = {com.globaltalenthub.security.JwtAuthFilter.class,
                    com.globaltalenthub.config.SecurityConfig.class}))
 class ClockworkControllerTest {
 

@@ -140,15 +140,18 @@ public class SearchController {
 
                 SearchQuery sq = searchQueryService.upsertForSession(query, sessionId, orgId, userId, null);
 
+                String userIdStr = userId != null ? userId.toString() : null;
                 SearchSession session = searchSessionRepository.findById(sessionId).orElseGet(() -> {
                     SearchSession s = new SearchSession();
                     s.setId(sessionId);
                     s.setRawQuery(query);
                     s.setStatus("active");
+                    s.setUserId(userIdStr);
                     return s;
                 });
                 session.setRawQuery(query);
                 if (session.getStatus() == null) session.setStatus("active");
+                if (session.getUserId() == null && userIdStr != null) session.setUserId(userIdStr);
                 session.setSearchQueryId(sq.getId());
                 searchSessionRepository.save(session);
 

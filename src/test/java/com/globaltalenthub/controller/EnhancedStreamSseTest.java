@@ -43,7 +43,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     excludeAutoConfiguration = org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class,
     excludeFilters = @org.springframework.context.annotation.ComponentScan.Filter(
         type = org.springframework.context.annotation.FilterType.ASSIGNABLE_TYPE,
-        classes = com.globaltalenthub.security.SupabaseJwtFilter.class))
+        classes = com.globaltalenthub.security.JwtAuthFilter.class))
 @Import(EnhancedStreamSseTest.SyncExecutorConfig.class)
 class EnhancedStreamSseTest {
 
