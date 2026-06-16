@@ -28,14 +28,10 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home
 ## Quick Start
 
 ```bash
-git clone <repo-url>
-cd global-talent-hub-spring
-cp src/main/resources/application-local.properties.example src/main/resources/application-local.properties
-# edit application-local.properties with real DB + Vertex creds
-SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
+mvn spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-App boots on `http://localhost:5000`.
+App boots on `http://localhost:5001`.
 
 ## Configuration
 
@@ -131,8 +127,6 @@ src/
 
 - [`CLAUDE.md`](CLAUDE.md) — guidance for Claude Code
 - [`docs/auth-jwt.md`](docs/auth-jwt.md) — app-owned JWT design
-- [`CODE_REVIEW.md`](CODE_REVIEW.md)
-- [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md)
 - [`INTEGRATION_TESTING.md`](INTEGRATION_TESTING.md)
 
 ## Conventions
