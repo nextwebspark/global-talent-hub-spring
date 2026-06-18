@@ -46,8 +46,35 @@ public class SearchPipelineService {
         sink.emit("status", "Understanding your query...", null);
 
         EnrichmentFilter filter = enrichmentFilterService.extract(query, briefContext);
-        sink.emit("intent_extracted",
-            "Sectors: " + (filter.primarySectors().isEmpty() ? "any" : String.join(", ", filter.primarySectors())),
+        if (!emitIntent(filter, query, searchQueryId, sink)) return;
+
+        if (aborted.getAsBoolean()) return;
+        sink.emit("status", "Querying enriched companies...", null);
+
+        List<EnrichedCompanyMatch> rows = fetchRows(filter, limit, searchQueryId, sink);
+        if (rows == null) return;
+
+        emitCompaniesFound(rows, aborted, sink);
+        if (aborted.getAsBoolean()) return;
+
+        int persistedCount = persistAndEmit(rows, filter, searchQueryId, orgId, sessionId, aborted, sink);
+
+        try {
+            searchQueryRepository.updateResultCount(searchQueryId, persistedCount, orgId);
+        } catch (Exception e) {
+            log.warn("[EnrichedSearch] updateResultCount failed: {}", e.getMessage());
+        }
+        sink.emit("search_complete", "Search complete",
+            Map.of("totalCompanies", persistedCount, "searchQueryId", searchQueryId));
+    }
+
+    /**
+     * Emits intent_extracted (and adjacent_sector_found if applicable).
+     * Returns false if the filter is unmapped and a no_results event was emitted instead.
+     */
+    private boolean emitIntent(EnrichmentFilter filter, String query, Long searchQueryId, EventSink sink) {
+        String sectorLabel = filter.primarySectors().isEmpty() ? "any" : String.join(", ", filter.primarySectors());
+        sink.emit("intent_extracted", "Sectors: " + sectorLabel,
             Map.of("intent", EnrichmentFilterService.filterToInferredIntent(filter)));
 
         if (EnrichmentFilterService.isUnmapped(filter, query)) {
@@ -55,7 +82,7 @@ public class SearchPipelineService {
                 "totalCompanies", 0,
                 "searchQueryId", searchQueryId,
                 "noResultsReason", NO_RESULTS_REASON));
-            return;
+            return false;
         }
 
         if (!filter.adjacentSectors().isEmpty()) {
@@ -63,10 +90,14 @@ public class SearchPipelineService {
                 "AI suggests " + filter.adjacentSectors().size() + " adjacent sectors",
                 Map.of("adjacentSectors", filter.adjacentSectors()));
         }
+        return true;
+    }
 
-        if (aborted.getAsBoolean()) return;
-        sink.emit("status", "Querying enriched companies...", null);
-
+    /**
+     * Queries enriched rows. Returns null on DB error (error event already emitted)
+     * or empty-result (search_complete already emitted).
+     */
+    private List<EnrichedCompanyMatch> fetchRows(EnrichmentFilter filter, int limit, Long searchQueryId, EventSink sink) {
         List<EnrichedCompanyMatch> rows;
         try {
             rows = enrichmentQueryService.query(filter, limit);
@@ -74,15 +105,19 @@ public class SearchPipelineService {
         } catch (Exception e) {
             log.error("[EnrichedSearch] Query failed: {}", e.getMessage());
             sink.emit("error", "Failed to load companies: " + e.getMessage(), null);
-            return;
+            return null;
         }
 
         if (rows.isEmpty()) {
             sink.emit("search_complete", "No matching companies found",
                 Map.of("totalCompanies", 0, "searchQueryId", searchQueryId));
-            return;
+            return null;
         }
+        return rows;
+    }
 
+    /** Emits a company_found event for each match. */
+    private void emitCompaniesFound(List<EnrichedCompanyMatch> rows, BooleanSupplier aborted, EventSink sink) {
         for (EnrichedCompanyMatch match : rows) {
             if (aborted.getAsBoolean()) return;
             EnrichedRow row = match.row();
@@ -92,42 +127,44 @@ public class SearchPipelineService {
                 "sector", safe(row.primarySector()),
                 "relevanceType", match.relevanceType()));
         }
+    }
 
-        int persistedCount = 0;
+    /** Upserts each match and emits company_enriched. Returns count of persisted companies. */
+    private int persistAndEmit(List<EnrichedCompanyMatch> rows, EnrichmentFilter filter,
+                                Long searchQueryId, UUID orgId, String sessionId,
+                                BooleanSupplier aborted, EventSink sink) {
+        int count = 0;
         for (EnrichedCompanyMatch match : rows) {
-            if (aborted.getAsBoolean()) return;
+            if (aborted.getAsBoolean()) return count;
             try {
-                EnrichedRow row = match.row();
                 String rationale = relevanceRationale(match, filter);
                 Company companyData = mapToCompany(match, rationale, sessionId);
                 CompanyService.UpsertResult result =
                     companyService.upsertNonDestructive(companyData, searchQueryId, orgId, FIELD_CONFIDENCES);
-                persistedCount++;
-                Company c = result.company();
-                StreamCompanyDto dto = new StreamCompanyDto(
-                    c.getId(), c.getName(), c.getSector(), c.getCountry(),
-                    c.getRegion() != null ? c.getRegion() : c.getCountry(),
-                    c.getRevenue() != null ? c.getRevenue().toPlainString() : revenueValue(row),
-                    c.getEmployees(),
-                    c.getWebsite() != null ? c.getWebsite() : row.website(),
-                    c.getSummary() != null ? c.getSummary() : row.businessDescription(),
-                    c.getLatitude() != null ? c.getLatitude().toPlainString() : null,
-                    c.getLongitude() != null ? c.getLongitude().toPlainString() : null,
-                    match.relevanceType(), rationale, match.matchScore(),
-                    false, false, new ArrayList<>(), result.isNew());
-                sink.emit("company_enriched", "Classified: " + c.getName(), Map.of("company", dto));
+                count++;
+                StreamCompanyDto dto = buildStreamDto(match, result, rationale);
+                sink.emit("company_enriched", "Classified: " + result.company().getName(), Map.of("company", dto));
             } catch (Exception e) {
                 log.error("[EnrichedSearch] Failed to persist \"{}\": {}", match.row().companyName(), e.getMessage());
             }
         }
+        return count;
+    }
 
-        try {
-            searchQueryRepository.updateResultCount(searchQueryId, persistedCount, orgId);
-        } catch (Exception e) {
-            log.warn("[EnrichedSearch] updateResultCount failed: {}", e.getMessage());
-        }
-        sink.emit("search_complete", "Search complete",
-            Map.of("totalCompanies", persistedCount, "searchQueryId", searchQueryId));
+    private StreamCompanyDto buildStreamDto(EnrichedCompanyMatch match, CompanyService.UpsertResult result, String rationale) {
+        Company c = result.company();
+        EnrichedRow row = match.row();
+        return new StreamCompanyDto(
+            c.getId(), c.getName(), c.getSector(), c.getCountry(),
+            c.getRegion() != null ? c.getRegion() : c.getCountry(),
+            c.getRevenue() != null ? c.getRevenue().toPlainString() : revenueValue(row),
+            c.getEmployees(),
+            c.getWebsite() != null ? c.getWebsite() : row.website(),
+            c.getSummary() != null ? c.getSummary() : row.businessDescription(),
+            c.getLatitude() != null ? c.getLatitude().toPlainString() : null,
+            c.getLongitude() != null ? c.getLongitude().toPlainString() : null,
+            match.relevanceType(), rationale, match.matchScore(),
+            false, false, new ArrayList<>(), result.isNew());
     }
 
     // Build a Company from an enriched row — port of enrichedRowToInsertCompany.

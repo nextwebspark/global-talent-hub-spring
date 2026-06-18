@@ -55,3 +55,6 @@ logs/
 *.tmp
 .DS_Store
 Thumbs.db
+
+# Data export dumps — never commit.
+docs/*.csv
