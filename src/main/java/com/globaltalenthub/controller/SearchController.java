@@ -113,6 +113,14 @@ public class SearchController {
         return new ConfidentialResponse(true, confidential);
     }
 
+    /**
+     * This takes a search query and streams the discovery/enrichment pipeline events to the browser EventSource.
+     * @param query
+     * @param sessionId
+     * @param user
+     * @param response
+     * @return
+     */
     @GetMapping(value = "/api/search/enhanced-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter enhancedStream(@RequestParam String query,
                                      @RequestParam String sessionId,

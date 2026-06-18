@@ -20,10 +20,12 @@ public record EnrichmentFilter(
     Boolean isListed,
     String searchRationale
 ) {
+    static final String FALLBACK_RATIONALE_PREFIX = "Companies relevant to: ";
+
     /** Empty filter used on LLM/parse failure — no over-filtering, never throws. */
     public static EnrichmentFilter empty(String query) {
         return new EnrichmentFilter(
             List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
-            null, "Companies relevant to: " + query);
+            null, FALLBACK_RATIONALE_PREFIX + query);
     }
 }
