@@ -5,6 +5,7 @@ import com.globaltalenthub.dto.InferredIntentDto;
 import com.globaltalenthub.taxonomy.Taxonomy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -29,11 +30,11 @@ public class EnrichmentFilterService {
 
     private final LlmClassifier classifier;
 
-    @org.springframework.beans.factory.annotation.Value("${app.company.search.default-limit:20}")
+    @Value("${app.company.search.default-limit:20}")
     private final int defaultLimit;
-    @org.springframework.beans.factory.annotation.Value("${app.company.search.min-limit:5}")
+    @Value("${app.company.search.min-limit:5}")
     private final int minLimit;
-    @org.springframework.beans.factory.annotation.Value("${app.company.search.max-limit:250}")
+    @Value("${app.company.search.max-limit:250}")
     private final int maxLimit;
 
     // Built once at startup. SECTORS is a Set; render sorted for stable prompt.
