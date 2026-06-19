@@ -47,13 +47,13 @@ class SearchPipelineServiceTest {
     }
 
     private static EnrichmentFilter filter(List<String> primaries, List<String> adjacents) {
-        return new EnrichmentFilter(primaries, adjacents, List.of(), List.of(), List.of(), List.of(), null, "rationale");
+        return new EnrichmentFilter(primaries, adjacents, List.of(), List.of(), List.of(), List.of(), null, "rationale", 10);
     }
 
     private static EnrichedCompanyMatch match(String name, String sector) {
         EnrichedRow row = new EnrichedRow(1L, "ext", name, "slug", "United States", sector,
             List.of(), List.of(), List.of(), null, "desc", null, null, null, null, null, null,
-            new BigDecimal("0.9"), null, null, null, null);
+            new BigDecimal("0.9"), null, null, null, null, List.of());
         return new EnrichedCompanyMatch(row, CompanyScore.score(row.toScorable(),
             filter(List.of(sector), List.of())));
     }
@@ -68,7 +68,7 @@ class SearchPipelineServiceTest {
         when(companyService.upsertNonDestructive(any(), any(), any(), any()))
             .thenReturn(new CompanyService.UpsertResult(saved, true));
 
-        pipeline.runSeedListEnhancedStream("top tech", 5L, uuid("org-1"), 10, () -> false, "sess", null, sink);
+        pipeline.runSeedListEnhancedStream("top tech", 5L, uuid("org-1"), () ->false, "sess", null, sink);
 
         assertThat(events).containsExactly(
             "status", "intent_extracted", "adjacent_sector_found", "status",
@@ -79,9 +79,9 @@ class SearchPipelineServiceTest {
     @Test
     void unmappedFilter_emitsNoResults_andStops() {
         // empty() yields the fallback rationale → isUnmapped true.
-        when(filterService.extract(any(), any())).thenReturn(EnrichmentFilter.empty("gibberish"));
+        when(filterService.extract(any(), any())).thenReturn(EnrichmentFilter.empty("gibberish", 20));
 
-        pipeline.runSeedListEnhancedStream("gibberish", 5L, uuid("org-1"), 10, () -> false, "sess", null, sink);
+        pipeline.runSeedListEnhancedStream("gibberish", 5L, uuid("org-1"), () ->false, "sess", null, sink);
 
         assertThat(events).containsExactly("status", "intent_extracted", "no_results");
         verify(queryService, never()).query(any(), anyInt());
@@ -92,7 +92,7 @@ class SearchPipelineServiceTest {
         when(filterService.extract(any(), any())).thenReturn(filter(List.of("Insurance"), List.of()));
         when(queryService.query(any(), anyInt())).thenReturn(List.of());
 
-        pipeline.runSeedListEnhancedStream("insurers", 5L, uuid("org-1"), 10, () -> false, "sess", null, sink);
+        pipeline.runSeedListEnhancedStream("insurers", 5L, uuid("org-1"), () ->false, "sess", null, sink);
 
         assertThat(events).containsExactly("status", "intent_extracted", "status", "search_complete");
         verify(companyService, never()).upsertNonDestructive(any(), any(), any(), any());
@@ -103,7 +103,7 @@ class SearchPipelineServiceTest {
         when(filterService.extract(any(), any())).thenReturn(filter(List.of("Insurance"), List.of()));
         when(queryService.query(any(), anyInt())).thenThrow(new RuntimeException("db down"));
 
-        pipeline.runSeedListEnhancedStream("insurers", 5L, uuid("org-1"), 10, () -> false, "sess", null, sink);
+        pipeline.runSeedListEnhancedStream("insurers", 5L, uuid("org-1"), () ->false, "sess", null, sink);
 
         assertThat(events).containsExactly("status", "intent_extracted", "status", "error");
     }
@@ -112,7 +112,7 @@ class SearchPipelineServiceTest {
     void abortedBeforeQuery_stopsEarly() {
         when(filterService.extract(any(), any())).thenReturn(filter(List.of("Insurance"), List.of()));
 
-        pipeline.runSeedListEnhancedStream("insurers", 5L, uuid("org-1"), 10, () -> true, "sess", null, sink);
+        pipeline.runSeedListEnhancedStream("insurers", 5L, uuid("org-1"), () ->true, "sess", null, sink);
 
         // status, intent_extracted emitted; abort checked before the "Querying..." status.
         assertThat(events).containsExactly("status", "intent_extracted");
@@ -123,9 +123,9 @@ class SearchPipelineServiceTest {
     void relevanceRationale_directWithSoftSignals() {
         EnrichedRow row = new EnrichedRow(1L, "ext", "Acme", "slug", "United States", "Technology & Software",
             List.of(), List.of(), List.of(), null, "desc", "1k-5k", null, "$1-10B", null, null, null,
-            new BigDecimal("0.9"), null, null, null, null);
+            new BigDecimal("0.9"), null, null, null, null, List.of());
         EnrichmentFilter f = new EnrichmentFilter(List.of("Technology & Software"), List.of(), List.of(),
-            List.of("United States"), List.of("1k-5k"), List.of("$1-10B"), null, "Tech firms in the US");
+            List.of("United States"), List.of("1k-5k"), List.of("$1-10B"), null, "Tech firms in the US", 20);
         EnrichedCompanyMatch m = new EnrichedCompanyMatch(row, CompanyScore.score(row.toScorable(), f));
 
         String rationale = SearchPipelineService.relevanceRationale(m, f);

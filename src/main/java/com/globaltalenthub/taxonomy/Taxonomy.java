@@ -35,6 +35,13 @@ public final class Taxonomy {
         "Conglomerates / Family Groups / Holdings"
     );
 
+    // Closed country vocabulary — the enrichment dataset covers exactly these 6 GCC
+    // markets. The classifier selects countries only from this list (canonical names);
+    // PipelineUtils.normalizeCountries maps shorthand (uae, ksa, …) onto them first.
+    public static final Set<String> COUNTRIES = Set.of(
+        "United Arab Emirates", "Saudi Arabia", "Qatar", "Kuwait", "Oman", "Bahrain"
+    );
+
     public static final Set<String> EMPLOYEE_BANDS = Set.of(
         "1-10", "11-50", "51-200", "201-500", "501-1k", "1k-5k", "5k-10k", "10k+"
     );

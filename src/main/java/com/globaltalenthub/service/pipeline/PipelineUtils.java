@@ -58,6 +58,32 @@ public final class PipelineUtils {
         return new ArrayList<>(out);
     }
 
+    /**
+     * Parse a {@code sector_mix} jsonb value (selected as text) — an array of
+     * {@code {"sector": "...", "weight": "..."}} objects — into typed weights.
+     * Never throws: returns an empty list on null/blank/malformed input or any
+     * element missing a sector. Order is preserved.
+     */
+    public static List<EnrichedRow.SectorWeight> parseSectorMix(String json) {
+        if (json == null || json.isBlank()) return List.of();
+        JsonNode node;
+        try {
+            node = MAPPER.readTree(json);
+        } catch (Exception e) {
+            return List.of();
+        }
+        if (node == null || !node.isArray()) return List.of();
+        List<EnrichedRow.SectorWeight> out = new ArrayList<>(node.size());
+        for (JsonNode entry : node) {
+            JsonNode sector = entry.get("sector");
+            if (sector == null || !sector.isTextual() || sector.asText().isBlank()) continue;
+            JsonNode weight = entry.get("weight");
+            String weightStr = (weight != null && weight.isTextual()) ? weight.asText() : null;
+            out.add(new EnrichedRow.SectorWeight(sector.asText(), weightStr));
+        }
+        return out;
+    }
+
     private static final Pattern FENCE = Pattern.compile("```(?:json)?\\s*([\\s\\S]*?)```");
 
     /**

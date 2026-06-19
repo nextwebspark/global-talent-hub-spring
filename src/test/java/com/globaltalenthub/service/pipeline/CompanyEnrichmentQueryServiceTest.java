@@ -32,24 +32,24 @@ class CompanyEnrichmentQueryServiceTest {
 
     private static EnrichmentFilter sectorFilter(String... primaries) {
         return new EnrichmentFilter(List.of(primaries), List.of(), List.of(), List.of(),
-            List.of(), List.of(), null, "r");
+            List.of(), List.of(), null, "r", 20);
     }
 
-    // Build a 23-column projection row matching the SELECT order.
+    // Build a 23-column projection row matching the SELECT order (last col = sector_mix jsonb text).
     private static Object[] row(long id, String name, String country, String primarySector,
                                 String[] subTags, BigDecimal confidence) {
         return new Object[]{
             id, "ext-" + id, name, name.toLowerCase().replace(' ', '-'), country, primarySector,
             new String[]{primarySector}, subTags, new String[]{}, null, null,
             null, null, null, null, null, null, confidence,
-            null, null, null, null
+            null, null, null, null, null
         };
     }
 
     @Test
     void noCrucialSignal_returnsEmpty_withoutQuerying() {
         EnrichmentFilter empty = new EnrichmentFilter(List.of(), List.of(), List.of(), List.of(),
-            List.of(), List.of(), null, "r");
+            List.of(), List.of(), null, "r", 20);
 
         assertThat(service.query(empty, 10)).isEmpty();
         verifyNoInteractions(repository);
@@ -57,14 +57,14 @@ class CompanyEnrichmentQueryServiceTest {
 
     @Test
     void poolSize_isMinMaxFormula() {
-        when(repository.queryCandidatePool(anyBoolean(), anyString(), anyBoolean(), anyString(), anyInt()))
+        when(repository.queryCandidatePool(anyBoolean(), anyString(), anyBoolean(), anyString(), anyString(), anyInt()))
             .thenReturn(List.of());
 
         service.query(sectorFilter("Technology & Software"), 10);   // max(50,100)=100
-        verify(repository).queryCandidatePool(eq(true), anyString(), eq(false), anyString(), eq(100));
+        verify(repository).queryCandidatePool(eq(true), anyString(), eq(false), anyString(), anyString(), eq(100));
 
         service.query(sectorFilter("Technology & Software"), 200);  // max(1000,100)=1000 → min(500,..)=500
-        verify(repository).queryCandidatePool(eq(true), anyString(), eq(false), anyString(), eq(500));
+        verify(repository).queryCandidatePool(eq(true), anyString(), eq(false), anyString(), anyString(), eq(500));
     }
 
     @Test
@@ -76,7 +76,7 @@ class CompanyEnrichmentQueryServiceTest {
         var techLow = row(2, "TechLow", "United States", "Technology & Software", new String[]{}, new BigDecimal("0.50"));
         var miss = row(3, "Miss", "United States", "Insurance", new String[]{}, new BigDecimal("0.99"));
 
-        when(repository.queryCandidatePool(anyBoolean(), anyString(), anyBoolean(), anyString(), anyInt()))
+        when(repository.queryCandidatePool(anyBoolean(), anyString(), anyBoolean(), anyString(), anyString(), anyInt()))
             .thenReturn(List.of(miss, techLow, techHigh));
 
         List<EnrichedCompanyMatch> out = service.query(sectorFilter("Technology & Software"), 2);
@@ -93,16 +93,31 @@ class CompanyEnrichmentQueryServiceTest {
         EnrichmentFilter f = new EnrichmentFilter(
             List.of("Banking & Financial Services"),
             List.of("Insurance"),
-            List.of(), List.of(), List.of(), List.of(), null, "r");
-        when(repository.queryCandidatePool(anyBoolean(), anyString(), anyBoolean(), anyString(), anyInt()))
+            List.of(), List.of(), List.of(), List.of(), null, "r", 20);
+        when(repository.queryCandidatePool(anyBoolean(), anyString(), anyBoolean(), anyString(), anyString(), anyInt()))
             .thenReturn(List.of());
 
         service.query(f, 10);
 
         ArgumentCaptor<String> sectorArg = ArgumentCaptor.forClass(String.class);
-        verify(repository).queryCandidatePool(eq(true), sectorArg.capture(), eq(false), anyString(), anyInt());
+        verify(repository).queryCandidatePool(eq(true), sectorArg.capture(), eq(false), anyString(), anyString(), anyInt());
         assertThat(sectorArg.getValue())
             .isEqualTo("{\"Banking & Financial Services\",\"Insurance\"}");
+    }
+
+    @Test
+    void requestedCountries_passedAsArrayLiteral_forPoolOrdering() {
+        EnrichmentFilter f = new EnrichmentFilter(
+            List.of("Capital Markets & Asset Management"), List.of(), List.of(),
+            List.of("Qatar"), List.of(), List.of(), null, "r", 20);
+        when(repository.queryCandidatePool(anyBoolean(), anyString(), anyBoolean(), anyString(), anyString(), anyInt()))
+            .thenReturn(List.of());
+
+        service.query(f, 10);
+
+        ArgumentCaptor<String> countryArg = ArgumentCaptor.forClass(String.class);
+        verify(repository).queryCandidatePool(eq(true), anyString(), eq(false), anyString(), countryArg.capture(), anyInt());
+        assertThat(countryArg.getValue()).isEqualTo("{\"Qatar\"}");
     }
 
     @Test
@@ -114,15 +129,39 @@ class CompanyEnrichmentQueryServiceTest {
     }
 
     @Test
+    void mapRow_parsesSectorMixJson() {
+        Object[] r = row(1, "Acme", "United Arab Emirates", "Banking & Financial Services",
+            new String[]{}, new BigDecimal("0.9"));
+        r[22] = "[{\"sector\":\"Banking & Financial Services\",\"weight\":\"dominant\"},"
+            + "{\"sector\":\"Insurance\",\"weight\":\"minor\"}]";
+
+        EnrichedRow mapped = CompanyEnrichmentQueryService.mapRow(r);
+
+        assertThat(mapped.sectorMix()).containsExactly(
+            new EnrichedRow.SectorWeight("Banking & Financial Services", "dominant"),
+            new EnrichedRow.SectorWeight("Insurance", "minor"));
+    }
+
+    @Test
+    void mapRow_nullOrGarbageSectorMix_yieldsEmptyList() {
+        Object[] nullMix = row(1, "Acme", "Qatar", "Insurance", new String[]{}, new BigDecimal("0.5"));
+        assertThat(CompanyEnrichmentQueryService.mapRow(nullMix).sectorMix()).isEmpty();
+
+        Object[] garbage = row(2, "Beta", "Qatar", "Insurance", new String[]{}, new BigDecimal("0.5"));
+        garbage[22] = "not json";
+        assertThat(CompanyEnrichmentQueryService.mapRow(garbage).sectorMix()).isEmpty();
+    }
+
+    @Test
     void subTagOnly_filter_queriesWithSubTagFlag_noSector() {
         EnrichmentFilter f = new EnrichmentFilter(List.of(), List.of(), List.of("fintech-payments"),
-            List.of(), List.of(), List.of(), null, "r");
-        when(repository.queryCandidatePool(anyBoolean(), anyString(), anyBoolean(), anyString(), anyInt()))
+            List.of(), List.of(), List.of(), null, "r", 20);
+        when(repository.queryCandidatePool(anyBoolean(), anyString(), anyBoolean(), anyString(), anyString(), anyInt()))
             .thenReturn(List.of());
 
         service.query(f, 10);
 
-        verify(repository).queryCandidatePool(eq(false), eq("{}"), eq(true), eq("{\"fintech-payments\"}"), eq(100));
-        verify(repository, never()).queryCandidatePool(eq(true), anyString(), anyBoolean(), anyString(), anyInt());
+        verify(repository).queryCandidatePool(eq(false), eq("{}"), eq(true), eq("{\"fintech-payments\"}"), eq("{}"), eq(100));
+        verify(repository, never()).queryCandidatePool(eq(true), anyString(), anyBoolean(), anyString(), anyString(), anyInt());
     }
 }

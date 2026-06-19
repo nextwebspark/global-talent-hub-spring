@@ -1,0 +1,52 @@
+[
+  {
+    "name": "banking-uae",
+    "query": "banking companies in the UAE",
+    "topK": 10,
+    "topAllCountry": "United Arab Emirates",
+    "topAllSector": "Banking & Financial Services",
+    "expectCompaniesPresent": ["First Abu Dhabi Bank", "Emirates NBD"],
+    "minResults": 1,
+    "maxResults": 20
+  },
+  {
+    "name": "insurers-saudi-list-30",
+    "query": "list 30 insurance companies in Saudi Arabia",
+    "topK": 10,
+    "topAllCountry": "Saudi Arabia",
+    "topAllSector": "Insurance",
+    "expectCompaniesPresent": [],
+    "minResults": 1,
+    "maxResults": 30
+  },
+  {
+    "name": "tech-uae-strong-cell",
+    "query": "technology and software companies in the UAE",
+    "topK": 10,
+    "topAllCountry": "United Arab Emirates",
+    "topAllSector": "Technology & Software",
+    "expectCompaniesPresent": [],
+    "minResults": 1,
+    "maxResults": 20
+  },
+  {
+    "name": "asset-management-qatar",
+    "query": "asset management and capital markets firms in Qatar",
+    "topK": 10,
+    "topAllCountry": "Qatar",
+    "topAllSector": null,
+    "expectCompaniesPresent": [],
+    "minResults": 1,
+    "maxResults": 20
+  },
+  {
+    "name": "conglomerates-kuwait-top5",
+    "query": "top 5 family holding groups in Kuwait",
+    "topK": 5,
+    "topAllCountry": "Kuwait",
+    "topAllSector": "Conglomerates / Family Groups / Holdings",
+    "expectCompaniesPresent": [],
+    "minResults": 1,
+    "maxResults": 5
+  }
+]

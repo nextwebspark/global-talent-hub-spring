@@ -2,7 +2,6 @@ package com.globaltalenthub.service.pipeline;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -15,8 +14,13 @@ class EnrichmentFilterServiceTest {
     @Mock
     LlmClassifier classifier;
 
-    @InjectMocks
     EnrichmentFilterService service;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        // default 20, min 5, max 250 — mirrors application.properties.
+        service = new EnrichmentFilterService(classifier, 20, 5, 250);
+    }
 
     @Test
     void validJson_keepsOnlyInVocab_dedupes_derivesAdjacent_normalizesCountries() {
@@ -44,6 +48,59 @@ class EnrichmentFilterServiceTest {
         assertThat(f.adjacentSectors())
             .containsExactly("Capital Markets & Asset Management", "Insurance", "Technology & Software");
         assertThat(f.searchRationale()).isEqualTo("Large banks in the UAE");
+    }
+
+    @Test
+    void limit_inferredFromJson_clampedToConfiguredRange() {
+        // explicit count within range survives; >max clamps to max; <min clamps to min; null -> default.
+        assertThat(extractLimitFor("\"limit\": 30")).isEqualTo(30);
+        assertThat(extractLimitFor("\"limit\": 9999")).isEqualTo(250);   // max
+        assertThat(extractLimitFor("\"limit\": 1")).isEqualTo(5);        // min
+        assertThat(extractLimitFor("\"limit\": null")).isEqualTo(20);    // default
+        assertThat(extractLimitFor("\"limit\": \"lots\"")).isEqualTo(20); // non-int -> default
+    }
+
+    private int extractLimitFor(String limitField) {
+        when(classifier.classify(org.mockito.ArgumentMatchers.anyString())).thenReturn(
+            "{\"primarySectors\":[\"Insurance\"]," + limitField + "}");
+        return service.extract("insurers", null).limit();
+    }
+
+    @Test
+    void countries_gatedToClosedGccVocab_nonGccDropped() {
+        // "India" normalizes fine but is outside the closed COUNTRIES set → dropped.
+        // "uae" shorthand normalizes to the canonical name and survives the gate.
+        when(classifier.classify(org.mockito.ArgumentMatchers.anyString())).thenReturn("""
+            {
+              "primarySectors": ["Banking & Financial Services"],
+              "countries": ["uae", "India", "Qatar"],
+              "searchRationale": "Gulf banks"
+            }
+            """);
+
+        EnrichmentFilter f = service.extract("gulf banks", null);
+
+        assertThat(f.countries()).containsExactly("United Arab Emirates", "Qatar");
+    }
+
+    @Test
+    void nicheQuery_validatesConcreteSubTagAndCountry() {
+        // Guards the contract the tightened prompt drives toward: a niche term resolves to a
+        // concrete vocab subTag and geography resolves to a normalized country.
+        when(classifier.classify(org.mockito.ArgumentMatchers.anyString())).thenReturn("""
+            {
+              "primarySectors": ["Technology & Software"],
+              "subTags": ["fintech-neobank"],
+              "countries": ["United Arab Emirates"],
+              "searchRationale": "Neobanks in the UAE"
+            }
+            """);
+
+        EnrichmentFilter f = service.extract("neobanks in the uae", null);
+
+        assertThat(f.primarySectors()).containsExactly("Technology & Software");
+        assertThat(f.subTags()).containsExactly("fintech-neobank");
+        assertThat(f.countries()).containsExactly("United Arab Emirates");
     }
 
     @Test
@@ -83,7 +140,7 @@ class EnrichmentFilterServiceTest {
 
     @Test
     void isUnmapped_trueWhenNoSignalAndFallbackRationale() {
-        EnrichmentFilter empty = EnrichmentFilter.empty("xyz");
+        EnrichmentFilter empty = EnrichmentFilter.empty("xyz", 20);
         assertThat(EnrichmentFilterService.isUnmapped(empty, "xyz")).isTrue();
     }
 
@@ -91,7 +148,7 @@ class EnrichmentFilterServiceTest {
     void isUnmapped_falseWhenCustomRationaleEvenIfNoSignal() {
         EnrichmentFilter f = new EnrichmentFilter(
             java.util.List.of(), java.util.List.of(), java.util.List.of(), java.util.List.of(),
-            java.util.List.of(), java.util.List.of(), null, "Custom rationale");
+            java.util.List.of(), java.util.List.of(), null, "Custom rationale", 20);
         assertThat(EnrichmentFilterService.isUnmapped(f, "xyz")).isFalse();
     }
 
@@ -100,7 +157,7 @@ class EnrichmentFilterServiceTest {
         EnrichmentFilter f = new EnrichmentFilter(
             java.util.List.of("Insurance"), java.util.List.of("Banking & Financial Services"),
             java.util.List.of("takaful"), java.util.List.of("Qatar"),
-            java.util.List.of(), java.util.List.of(), null, "rationale");
+            java.util.List.of(), java.util.List.of(), null, "rationale", 20);
 
         var intent = EnrichmentFilterService.filterToInferredIntent(f);
 
