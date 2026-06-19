@@ -37,8 +37,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * SSE search endpoint — port of the enhanced-stream route in search.ts. Streams the
@@ -50,8 +48,6 @@ import java.util.regex.Pattern;
 public class SearchController {
 
     private static final long SSE_TIMEOUT_MS = 300_000L; // 5 min
-    private static final Pattern LIMIT_PATTERN =
-        Pattern.compile("(?:top|first|leading|biggest|largest|best)\\s+(\\d+)", Pattern.CASE_INSENSITIVE);
 
     private final SearchPipelineService pipelineService;
     private final SearchQueryService searchQueryService;
@@ -144,7 +140,6 @@ public class SearchController {
             EventSink sink = new SseSink(emitter, sessionId, objectMapper, searchSessionRepository);
             try {
                 String briefContext = buildBriefContext(sessionId);
-                int limit = extractLimit(query);
 
                 SearchQuery sq = searchQueryService.upsertForSession(query, sessionId, orgId, userId, null);
 
@@ -167,7 +162,7 @@ public class SearchController {
                     Map.of("searchQueryId", sq.getId(), "query", query, "sessionId", sessionId));
 
                 pipelineService.runSeedListEnhancedStream(
-                    query, sq.getId(), orgId, limit, aborted::get, sessionId, briefContext, sink);
+                    query, sq.getId(), orgId, aborted::get, sessionId, briefContext, sink);
 
                 if (!aborted.get()) {
                     sink.emit("done", "Done", Map.of("searchQueryId", sq.getId()));
@@ -308,21 +303,6 @@ public class SearchController {
             return summary.isBlank() ? null : summary;
         }
         return pdContent.substring(0, Math.min(pdContent.length(), BriefConfig.CLASSIFIER_CHAR_LIMIT));
-    }
-
-    // Extract a "top N" / "first N" limit; default 10, clamp 1..50.
-    static int extractLimit(String query) {
-        if (query == null) return 10;
-        Matcher m = LIMIT_PATTERN.matcher(query);
-        if (m.find()) {
-            try {
-                int n = Integer.parseInt(m.group(1));
-                if (n >= 1 && n <= 50) return n;
-            } catch (NumberFormatException ignored) {
-                // fall through to default
-            }
-        }
-        return 10;
     }
 
     /** EventSink that writes to the SseEmitter and persists intent on intent_extracted. */

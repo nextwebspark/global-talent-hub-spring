@@ -1,0 +1,119 @@
+[
+  {
+    "name": "banking-in-uae",
+    "query": "banking companies in the UAE",
+    "expectPrimarySectors": ["Banking & Financial Services"],
+    "expectCountries": ["United Arab Emirates"],
+    "expectSubTagsContains": [],
+    "expectLimit": null,
+    "expectIsListed": null
+  },
+  {
+    "name": "top-30-insurers-saudi",
+    "query": "top 30 insurance companies in Saudi Arabia",
+    "expectPrimarySectors": ["Insurance"],
+    "expectCountries": ["Saudi Arabia"],
+    "expectSubTagsContains": [],
+    "expectLimit": 30,
+    "expectIsListed": null
+  },
+  {
+    "name": "neobanks-uae",
+    "query": "neobanks and digital banking startups in the UAE",
+    "expectPrimarySectors": [],
+    "expectCountries": ["United Arab Emirates"],
+    "expectSubTagsContains": ["fintech-neobank"],
+    "expectLimit": null,
+    "expectIsListed": null
+  },
+  {
+    "name": "takaful-saudi",
+    "query": "takaful insurance providers in Saudi Arabia",
+    "expectPrimarySectors": ["Insurance"],
+    "expectCountries": ["Saudi Arabia"],
+    "expectSubTagsContains": ["takaful"],
+    "expectLimit": null,
+    "expectIsListed": null
+  },
+  {
+    "name": "family-holdings-kuwait",
+    "query": "a handful of family holding groups in Kuwait",
+    "expectPrimarySectors": ["Conglomerates / Family Groups / Holdings"],
+    "expectCountries": ["Kuwait"],
+    "expectSubTagsContains": [],
+    "expectLimit": 5,
+    "expectIsListed": null
+  },
+  {
+    "name": "asset-management-qatar",
+    "query": "asset management and capital markets firms in Qatar",
+    "expectPrimarySectors": ["Capital Markets & Asset Management"],
+    "expectCountries": ["Qatar"],
+    "expectSubTagsContains": ["asset-management"],
+    "expectLimit": null,
+    "expectIsListed": null
+  },
+  {
+    "name": "petrochemicals-saudi",
+    "query": "petrochemical and refining companies in Saudi Arabia",
+    "expectPrimarySectors": ["Oil & Gas - Downstream / Petrochemicals"],
+    "expectCountries": ["Saudi Arabia"],
+    "expectSubTagsContains": ["petrochemicals"],
+    "expectLimit": null,
+    "expectIsListed": null
+  },
+  {
+    "name": "hospitals-saudi-list-15",
+    "query": "list 15 hospitals and healthcare providers in Saudi Arabia",
+    "expectPrimarySectors": ["Healthcare & Pharmaceuticals"],
+    "expectCountries": ["Saudi Arabia"],
+    "expectSubTagsContains": [],
+    "expectLimit": 15,
+    "expectIsListed": null
+  },
+  {
+    "name": "non-gcc-country-dropped",
+    "query": "technology and software companies in India",
+    "expectPrimarySectors": ["Technology & Software"],
+    "expectCountries": [],
+    "expectSubTagsContains": [],
+    "expectLimit": null,
+    "expectIsListed": null
+  },
+  {
+    "name": "no-geography-default-limit",
+    "query": "fintech payment companies",
+    "expectPrimarySectors": [],
+    "expectCountries": [],
+    "expectSubTagsContains": ["fintech-payments"],
+    "expectLimit": 20,
+    "expectIsListed": null
+  },
+  {
+    "name": "private-listed-wording-extracts-isListed",
+    "query": "listed power and utility companies in the UAE",
+    "expectPrimarySectors": ["Power & Utilities"],
+    "expectCountries": ["United Arab Emirates"],
+    "expectSubTagsContains": [],
+    "expectLimit": null,
+    "expectIsListed": true
+  },
+  {
+    "name": "over-max-limit-clamped",
+    "query": "top 5000 technology companies in the UAE",
+    "expectPrimarySectors": ["Technology & Software"],
+    "expectCountries": ["United Arab Emirates"],
+    "expectSubTagsContains": [],
+    "expectLimit": 250,
+    "expectIsListed": null
+  },
+  {
+    "name": "multi-country-gulf",
+    "query": "banks in the UAE and Saudi Arabia",
+    "expectPrimarySectors": ["Banking & Financial Services"],
+    "expectCountries": ["United Arab Emirates", "Saudi Arabia"],
+    "expectSubTagsContains": [],
+    "expectLimit": null,
+    "expectIsListed": null
+  }
+]

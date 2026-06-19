@@ -45,6 +45,7 @@ public class CompanyEnrichmentQueryService {
         List<Object[]> rawRows = repository.queryCandidatePool(
             hasSector, toArrayLiteral(sectorAll),
             hasSubTags, toArrayLiteral(filter.subTags()),
+            toArrayLiteral(filter.countries()),
             pool);
 
         return rawRows.stream()
@@ -144,6 +145,7 @@ public class CompanyEnrichmentQueryService {
             str(r[18]),                 // website
             str(r[19]),                 // phone
             str(r[20]),                 // email
-            str(r[21]));                // address
+            str(r[21]),                 // address
+            PipelineUtils.parseSectorMix(str(r[22])));  // sector_mix (jsonb as text)
     }
 }

@@ -32,6 +32,13 @@ class TaxonomyTest {
     }
 
     @Test
+    void countries_areTheSixGccMarkets() {
+        assertThat(Taxonomy.COUNTRIES).containsExactlyInAnyOrder(
+            "United Arab Emirates", "Saudi Arabia", "Qatar", "Kuwait", "Oman", "Bahrain");
+        assertThat(Taxonomy.COUNTRIES).hasSize(6);
+    }
+
+    @Test
     void subTags_nonEmpty() {
         assertThat(Taxonomy.SUB_TAGS).isNotEmpty();
         assertThat(Taxonomy.SUB_TAGS).contains("retail-banking", "ai-ml-platform", "executive-search");

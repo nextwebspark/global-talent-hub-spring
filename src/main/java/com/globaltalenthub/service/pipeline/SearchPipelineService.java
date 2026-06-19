@@ -40,7 +40,7 @@ public class SearchPipelineService {
     private final CoordinateFallbackService coordinateFallbackService;
     private final SearchQueryRepository searchQueryRepository;
 
-    public void runSeedListEnhancedStream(String query, Long searchQueryId, UUID orgId, int limit,
+    public void runSeedListEnhancedStream(String query, Long searchQueryId, UUID orgId,
                                           BooleanSupplier aborted, String sessionId, String briefContext,
                                           EventSink sink) {
         sink.emit("status", "Understanding your query...", null);
@@ -51,7 +51,7 @@ public class SearchPipelineService {
         if (aborted.getAsBoolean()) return;
         sink.emit("status", "Querying enriched companies...", null);
 
-        List<EnrichedCompanyMatch> rows = fetchRows(filter, limit, searchQueryId, sink);
+        List<EnrichedCompanyMatch> rows = fetchRows(filter, filter.limit(), searchQueryId, sink);
         if (rows == null) return;
 
         emitCompaniesFound(rows, aborted, sink);

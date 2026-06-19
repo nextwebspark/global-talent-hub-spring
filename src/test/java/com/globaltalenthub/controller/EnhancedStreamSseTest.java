@@ -28,7 +28,6 @@ import java.util.concurrent.Executor;
 import static com.globaltalenthub.TestIds.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -88,7 +87,7 @@ class EnhancedStreamSseTest {
     void emitsFullEventSequence_inOrder() throws Exception {
         stubQueryAndSession();
         Answer<Void> drive = inv -> {
-            EventSink sink = inv.getArgument(7);
+            EventSink sink = inv.getArgument(6);
             sink.emit("intent_extracted", "Sectors: Technology & Software", Map.of("intent", "x"));
             sink.emit("adjacent_sector_found", "AI suggests 1", Map.of("adjacentSectors", List.of("Insurance")));
             sink.emit("company_found", "Found: Acme", Map.of("name", "Acme"));
@@ -97,7 +96,7 @@ class EnhancedStreamSseTest {
             return null;
         };
         Mockito.doAnswer(drive).when(pipelineService).runSeedListEnhancedStream(
-            any(), any(), any(), anyInt(), any(), any(), any(), any());
+            any(), any(), any(), any(), any(), any(), any());
 
         MvcResult mvc = perform("top 5 tech companies", "sess-1");
 
@@ -115,13 +114,13 @@ class EnhancedStreamSseTest {
     void unmappedFilter_emitsNoResults_thenDone() throws Exception {
         stubQueryAndSession();
         Answer<Void> drive = inv -> {
-            EventSink sink = inv.getArgument(7);
+            EventSink sink = inv.getArgument(6);
             sink.emit("intent_extracted", "Sectors: any", Map.of("intent", "x"));
             sink.emit("no_results", "none", Map.of("totalCompanies", 0));
             return null;
         };
         Mockito.doAnswer(drive).when(pipelineService).runSeedListEnhancedStream(
-            any(), any(), any(), anyInt(), any(), any(), any(), any());
+            any(), any(), any(), any(), any(), any(), any());
 
         MvcResult mvc = perform("asdfqwer", "sess-2");
 

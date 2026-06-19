@@ -33,9 +33,17 @@ public record EnrichedRow(
     String website,
     String phone,
     String email,
-    String address
+    String address,
+    // Full operating-sector breakdown with weights. By the enrichment invariant exactly
+    // one entry equals primarySector at weight "dominant"; "significant"/"minor" entries
+    // are the true secondary sectors the scorer credits below a primary hit.
+    List<SectorWeight> sectorMix
 ) {
+    /** One weighted sector from the sector_mix jsonb: weight ∈ {dominant, significant, minor}. */
+    public record SectorWeight(String sector, String weight) {}
+
     CompanyScore.ScorableRow toScorable() {
-        return new CompanyScore.ScorableRow(primarySector, subTags, country, revenueBand, employeeBand, isListed);
+        return new CompanyScore.ScorableRow(
+            primarySector, sectorTags, sectorMix, subTags, country, revenueBand, employeeBand, isListed);
     }
 }
