@@ -6,6 +6,9 @@ WORKDIR /build
 COPY pom.xml .
 RUN mvn -q -B dependency:go-offline
 
+# lombok.config copies Spring @Value/@Qualifier onto Lombok-generated constructor
+# params; without it in the build context, @Value final-field injection fails.
+COPY lombok.config .
 COPY src ./src
 # Skip tests in the image build — CI/local runs them. Produces the fat jar.
 RUN mvn -q -B clean package -DskipTests
