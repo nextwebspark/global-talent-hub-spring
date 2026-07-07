@@ -49,7 +49,7 @@ App boots on `http://localhost:5001`.
 | Var | Description |
 |-----|-------------|
 | `DATABASE_URL` | JDBC URL for PostgreSQL |
-| `DATABASE_USERNAME` | DB user (Supabase pooler requires separate creds in prod) |
+| `DATABASE_USERNAME` | DB user (supplied separately from the URL; required in prod) |
 | `DATABASE_PASSWORD` | DB password |
 | `APP_JWT_SECRET` | HS256 signing key, **min 32 bytes**. App fails at startup if placeholder used outside `test` profile |
 | `APP_JWT_EXPIRY_SECONDS` | Optional, default 7 days |
