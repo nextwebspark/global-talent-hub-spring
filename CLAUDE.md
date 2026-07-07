@@ -23,7 +23,7 @@ AI-powered executive search / talent-mapping SaaS. Spring Boot 3.3.5, Java 21, P
 | Single test class | `mvn test -Dtest=ClassName` |
 | Single test method | `mvn test -Dtest=ClassName#method` |
 
-`mvn test` auto-activates the `test` profile (H2 in-memory, Vertex AI autoconfig excluded). Override the port with `PORT`. Key runtime env vars: `DATABASE_URL`, `DATABASE_USERNAME` / `DATABASE_PASSWORD` (Supabase pooler uses separate creds, required in prod), `APP_JWT_SECRET` (>=32 bytes; `APP_JWT_EXPIRY_SECONDS` optional, default 7d), `GOOGLE_CLOUD_PROJECT`, `CLOCKWORK_*`.
+`mvn test` auto-activates the `test` profile (H2 in-memory, Vertex AI autoconfig excluded). Override the port with `PORT`. Key runtime env vars: `DATABASE_URL`, `DATABASE_USERNAME` / `DATABASE_PASSWORD` (Cloud SQL creds supplied separately from the URL, required in prod), `APP_JWT_SECRET` (>=32 bytes; `APP_JWT_EXPIRY_SECONDS` optional, default 7d), `GOOGLE_CLOUD_PROJECT`, `CLOCKWORK_*`.
 
 **Profiles**: `dev` (default), `prod`, `test` (auto on `mvn test`), and `local` — `application-local.properties` is gitignored and holds real DB/Vertex creds for local runs; copy from `application-local.properties.example` and activate with `SPRING_PROFILES_ACTIVE=local`. A `railway-vertex-key.json` may sit at repo root; it's covered by the `*-vertex-key.json` gitignore pattern — don't rename or move it in commits.
 

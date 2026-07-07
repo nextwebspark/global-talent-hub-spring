@@ -30,6 +30,15 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- Aligns all com.google.* versions (gax, google-auth) so the Cloud SQL
+                 socket factory and Vertex AI agree. Must precede spring-ai-bom. -->
+            <dependency>
+                <groupId>com.google.cloud</groupId>
+                <artifactId>libraries-bom</artifactId>
+                <version>26.65.0</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <dependency>
                 <groupId>org.springframework.ai</groupId>
                 <artifactId>spring-ai-bom</artifactId>
@@ -76,6 +85,14 @@
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
+        </dependency>
+
+        <!-- Cloud SQL Java Connector (socket factory) — keyless connect via ADC on
+             Cloud Run; local dev goes through the Cloud SQL Auth Proxy instead. -->
+        <dependency>
+            <groupId>com.google.cloud.sql</groupId>
+            <artifactId>postgres-socket-factory</artifactId>
+            <version>1.20.1</version>
         </dependency>
 
         <!-- Lombok -->

@@ -2,9 +2,13 @@
 #   cp src/main/resources/application-local.properties.example \
 #      src/main/resources/application-local.properties
 # Then fill in real values. The real file is gitignored.
-# Run:  SPRING_PROFILES_ACTIVE=dev,local mvn spring-boot:run
+#
+# Local dev connects to Cloud SQL (bright-gcc) through the Cloud SQL Auth Proxy.
+# Start it first (needs gcloud auth / ADC), then run the app:
+#   cloud-sql-proxy hak-talent-mapping:us-central1:bright-gcc --port 5432
+#   SPRING_PROFILES_ACTIVE=dev,local mvn spring-boot:run
 
-spring.datasource.url=jdbc:postgresql://localhost:5432/global_talent_hub
+spring.datasource.url=jdbc:postgresql://127.0.0.1:5432/brightdata
 spring.datasource.username=postgres
 spring.datasource.password=
 

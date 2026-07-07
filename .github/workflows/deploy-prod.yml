@@ -19,8 +19,11 @@ env:
   REGION: us-central1
   SERVICE: gth-api
   # Non-secret runtime config. Secrets (DB password, JWT) come from Secret Manager.
-  DATABASE_URL: jdbc:postgresql://aws-1-eu-central-1.pooler.supabase.com:5432/postgres
-  DATABASE_USERNAME: postgres.nkfiqwcwsjmzmakhnqdl
+  # Cloud SQL via the Java Connector socket factory (no host:port; keyless via ADC).
+  # Instance is mounted with --add-cloudsql-instances below; SA needs roles/cloudsql.client.
+  CLOUDSQL_INSTANCE: hak-talent-mapping:us-central1:bright-gcc
+  DATABASE_URL: jdbc:postgresql:///brightdata?cloudSqlInstance=hak-talent-mapping:us-central1:bright-gcc&socketFactory=com.google.cloud.sql.postgres.SocketFactory
+  DATABASE_USERNAME: postgres
   # Vercel prod origin + localhost:5173 so devs can hit prod backend from a local Vite UI.
   CORS_ORIGINS: https://global-talent-hub-ui.vercel.app,http://localhost:5173
   # Public Mapbox token (pk.*). Stored as a GitHub Actions repo variable to keep it
@@ -70,6 +73,7 @@ jobs:
             --cpu 1 \
             --max-instances 5 \
             --port 8080 \
+            --add-cloudsql-instances "$CLOUDSQL_INSTANCE" \
             --set-env-vars "^@^SPRING_PROFILES_ACTIVE=prod@GOOGLE_CLOUD_PROJECT=${PROJECT}@GOOGLE_CLOUD_LOCATION=${REGION}@DATABASE_URL=${DATABASE_URL}@DATABASE_USERNAME=${DATABASE_USERNAME}@MAPBOX_ACCESS_TOKEN=${MAPBOX_ACCESS_TOKEN}@APP_CORS_ALLOWED_ORIGINS=${CORS_ORIGINS}" \
             --set-secrets "DATABASE_PASSWORD=gth-db-password:latest,APP_JWT_SECRET=gth-jwt-secret:latest"
 
