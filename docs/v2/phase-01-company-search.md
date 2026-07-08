@@ -3,7 +3,10 @@
 ## Goal
 
 Paginated SQL search/filter over the `app_companies` master catalog + a facets endpoint returning
-filter counts for the scope sidebar. Plain SQL only — **no LLM, no vectors** this phase.
+filter counts for the scope sidebar. Plain SQL only — **no LLM, no vectors** this phase. This
+endpoint takes already-structured filters (`industry[]`, `country[]`, `revenueRange[]`,
+`employeeRange[]`) as params; **where those come from is phase 02** — the LLM (Vertex AI) parses the
+raw query into exactly these fields. Here they're just inputs.
 
 ## Depends on
 
@@ -12,14 +15,22 @@ Phase 00 (`AppCompany` entity, repo, DTO exist).
 ## What to build (backend)
 
 - **`AppCompanyRepository`** — add:
-  - `search(...)` — paginated (`Pageable`) filter query. Scalar filters, each ignorable when
-    empty: `q` ILIKE on `name` + `search_text`; `primary_industry IN`; `hq_country IN`;
+  - `search(...)` — paginated (`Pageable`) filter query. Filters, each ignorable when empty:
+    `q` ILIKE on `name` + `search_text`; **`industry` → ILIKE `primary_industry`** (OR of
+    `primary_industry ILIKE %term%` per term — NOT exact `IN`, because phase-02's LLM emits free
+    industry terms and `primary_industry` has 523 distinct raw labels); `hq_country IN`;
     `revenue_range IN`; `employee_range IN`. Compose AND across fields, OR within a field.
   - facet count queries: group-by-count over `primary_industry`, `hq_country`, `revenue_range`,
     `employee_range`.
+- **Real `app_companies` values (GCC dataset, probed live — see memory `app-companies-real-vocab`):**
+  `hq_country` = 6 **ISO-2 codes** `AE, SA, QA, KW, OM, BH` (not names); `revenue_range` ∈
+  `<5M, 5M-25M, 25M-100M, 100M-500M, 500M-1B, 1B-5B, 5B+`; `employee_range` ∈ `1-10, 11-50, 51-200,
+  201-500, 501-1000, 1001-5000, 5001-10000, 10000+`. The `country`/`revenueRange`/`employeeRange`
+  params take these **exact strings** (they match phase-02's parsed criteria). `industry` is free
+  text (ILIKE), not a fixed set.
 - **Array-tag note**: `industry_tags && :tags` (Postgres array overlap) is **Postgres-only and not
-  H2-testable**. For phase 01, match `industry` against **`primary_industry` (scalar, H2-safe)**;
-  richer `industry_tags` overlap is deferred to the pgvector phase. State the choice in the PR.
+  H2-testable**. For phase 01, industry matches `primary_industry` via ILIKE (H2-safe); richer
+  `industry_tags` overlap is deferred to the pgvector phase. State the choice in the PR.
 - **`AppCompanyService`** — `search(...)` (build `Pageable` + **sort whitelist**: only
   `name`/`revenueUsd`/`employeeCount`/`founded`; default `revenueUsd,desc`; reject others) and
   `facets()`. Cap `size` at 100.
@@ -37,10 +48,10 @@ Phase 00 (`AppCompany` entity, repo, DTO exist).
 | param | type | default | meaning |
 |------|------|---------|---------|
 | `q` | string | — | ILIKE `name` + `search_text` |
-| `industry` | string[] | — | `primary_industry IN` |
-| `country` | string[] | — | `hq_country IN` |
-| `revenueRange` | string[] | — | `revenue_range IN` |
-| `employeeRange` | string[] | — | `employee_range IN` |
+| `industry` | string[] | — | ILIKE `primary_industry` (OR per term; free text, not a set) |
+| `country` | string[] | — | `hq_country IN` — ISO-2 codes: `AE,SA,QA,KW,OM,BH` |
+| `revenueRange` | string[] | — | `revenue_range IN` — `<5M,5M-25M,25M-100M,100M-500M,500M-1B,1B-5B,5B+` |
+| `employeeRange` | string[] | — | `employee_range IN` — `1-10,11-50,51-200,201-500,501-1000,1001-5000,5001-10000,10000+` |
 | `sort` | `field,dir` | `revenueUsd,desc` | field ∈ {name,revenueUsd,employeeCount,founded} |
 | `page` | int | 0 | 0-based |
 | `size` | int | 25 | ≤100 |
@@ -50,10 +61,12 @@ Phase 00 (`AppCompany` entity, repo, DTO exist).
 
 **`GET /api/app/companies/facets`** →
 ```json
-{ "industries": [{"value":"Banking & Financial Services","count":812}],
-  "countries": [{"value":"Saudi Arabia","count":6402}],
-  "revenueRanges": [{"value":"$1B–5B","count":340}],
-  "employeeRanges": [{"value":"5K–10K","count":210}] }
+// values are the REAL app_companies strings (GCC dataset). Example top rows:
+{ "industries": [{"value":"Business Consulting and Services","count":3849},
+                 {"value":"Construction","count":2929}],
+  "countries": [{"value":"AE","count":40819},{"value":"SA","count":7622}],
+  "revenueRanges": [{"value":"5M-25M","count":43533},{"value":"1B-5B","count":481}],
+  "employeeRanges": [{"value":"1-10","count":26345},{"value":"10000+","count":131}] }
 ```
 
 ## UI — what to do this phase
@@ -86,16 +99,19 @@ core discovery screen.
   (`Toggle`), bulk bar (`BulkBar`). Column set + sort UX to mirror.
 - `universe-filters.jsx` — `UniverseFilters` + `ScopeSection` / `ScopeCheckbox`: the collapsible
   facet sidebar with per-option counts and active-filter badge; master option lists in `data.jsx`
-  (`TM_MASTER_COUNTRIES`, `TM_MASTER_SECTORS`, `TM_MASTER_REVENUE`, `TM_MASTER_RELEVANCE`). Maps
-  directly onto the facets response.
+  (`TM_MASTER_COUNTRIES`, `TM_MASTER_SECTORS`, `TM_MASTER_REVENUE`, `TM_MASTER_RELEVANCE`) are the
+  design's **placeholder** options — **drive the real sidebar from the `/facets` response**, not
+  these constants (the design's labels won't match the real ISO-2 codes / band strings). Show a
+  country's code (`AE`) with a friendly label if desired, but send the code to the API.
 
 ## Test / verify
 
-- `JAVA_HOME=…jdk-21… mvn test -Dtest=AppCompanySearchTest` — seed ~5 companies spanning 2
-  countries / 2 revenue ranges / 2 industries; assert: `q` narrows (case-insensitive); single +
-  multiple `country` (OR); `country`+`revenueRange` compose (AND); pagination `size=2` totals +
-  stable order; `sort=name,asc` vs unknown-sort fallback; facet counts equal seeded groups.
-- Manual: `GET /api/app/companies/search?q=bank&country=Saudi%20Arabia&sort=revenueUsd,desc&page=0&size=20`
+- `JAVA_HOME=…jdk-21… mvn test -Dtest=AppCompanySearchTest` — seed ~5 companies spanning 2 countries
+  (`AE`/`SA`) / 2 revenue ranges / 2 industries; assert: `q` narrows (case-insensitive);
+  **`industry` matches via ILIKE** (partial term e.g. `Oil` hits `Oil and Gas`); single + multiple
+  `country` (OR); `country`+`revenueRange` compose (AND); pagination `size=2` totals + stable order;
+  `sort=name,asc` vs unknown-sort fallback; facet counts equal seeded groups.
+- Manual: `GET /api/app/companies/search?q=bank&country=SA&revenueRange=1B-5B&sort=revenueUsd,desc&page=0&size=20`
   and `GET /api/app/companies/facets`.
 - UI: `npm run check`; results list renders filtered + paged against a running backend.
 
