@@ -16,8 +16,9 @@ AI-powered executive search and talent-mapping SaaS. Spring Boot backend with se
 
 - JDK 21 (Lombok 1.18.34 breaks on JDK 26)
 - Maven 3.9.6
-- PostgreSQL 14+ (for non-test runs)
-- Google Cloud project with Vertex AI enabled (for live LLM calls)
+- [Cloud SQL Auth Proxy](https://cloud.google.com/sql/docs/postgres/sql-proxy) — `brew install cloud-sql-proxy` (local dev connects to Cloud SQL through it)
+- **gcloud CLI**, authenticated: `gcloud auth login` and `gcloud auth application-default login`. ADC powers both the proxy and Vertex AI — no key file needed.
+- Access to GCP project `hak-talent-mapping` with IAM `roles/cloudsql.client` (DB) and `roles/aiplatform.user` (Vertex AI)
 
 Pin `JAVA_HOME` if your shell's `mvn` bundles a newer JDK:
 
@@ -27,11 +28,29 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home
 
 ## Quick Start
 
+Local dev runs against **Cloud SQL** (`bright-gcc`) through the Cloud SQL Auth
+Proxy. The proxy **must be running first** — the local datasource URL points at
+`127.0.0.1:5432`, which is the proxy.
+
 ```bash
-mvn spring-boot:run -Dspring-boot.run.profiles=local
+# 1. Copy the local config template, then fill in secrets (the real file is gitignored).
+cp src/main/resources/application-local.properties.example \
+   src/main/resources/application-local.properties
+
+# 2. Terminal A — start the Cloud SQL Auth Proxy and leave it running.
+cloud-sql-proxy hak-talent-mapping:us-central1:bright-gcc --port 5432
+
+# 3. Terminal B — run the app.
+SPRING_PROFILES_ACTIVE=dev,local mvn spring-boot:run
 ```
 
 App boots on `http://localhost:5001`.
+
+In `application-local.properties`, set: `spring.datasource.password` (Cloud SQL
+password), `app.jwt.secret` (any string ≥ 32 bytes, local only), and
+`spring.ai.vertex.ai.gemini.project-id=hak-talent-mapping`. Leave the
+`credentials-uri` line out — ADC (from `gcloud auth application-default login`)
+supplies Vertex AI credentials.
 
 ## Configuration
 
@@ -55,7 +74,7 @@ App boots on `http://localhost:5001`.
 | `APP_JWT_EXPIRY_SECONDS` | Optional, default 7 days |
 | `GOOGLE_CLOUD_PROJECT` | GCP project ID for Vertex AI |
 | `CLOCKWORK_*` | Clockwork Recruiting API credentials |
-| `PORT` | Optional, default 5000 |
+| `PORT` | Optional, default 5001 |
 
 Vertex AI service-account key files matching `*-vertex-key.json` are gitignored (do not rename or commit).
 
@@ -64,7 +83,7 @@ Vertex AI service-account key files matching `*-vertex-key.json` are gitignored 
 | Task | Command |
 |------|---------|
 | Build JAR | `mvn clean package` |
-| Run dev (port 5000) | `mvn spring-boot:run` |
+| Run dev (port 5001) | `mvn spring-boot:run` |
 | Run prod profile | `SPRING_PROFILES_ACTIVE=prod mvn spring-boot:run` |
 | Run all tests | `mvn test` |
 | Single test class | `mvn test -Dtest=ClassName` |
@@ -78,7 +97,7 @@ Multi-stage `Dockerfile` (Maven build → `eclipse-temurin:21-jre`). Runs as non
 
 ```bash
 docker build -t global-talent-hub .
-docker run -p 5000:5000 \
+docker run -p 5001:5001 \
   -e DATABASE_URL=... \
   -e DATABASE_USERNAME=... \
   -e DATABASE_PASSWORD=... \
