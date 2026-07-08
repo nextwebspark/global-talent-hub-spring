@@ -38,7 +38,7 @@ Guard both by project-in-org (like `OrgGuardService`), never trust `projectId` f
 **`GET /api/app/projects/{id}/companies?page&size`** → `Page<ProjectCompanyDto>`:
 ```json
 { "content": [ { "id": 100, "companyId": 12, "name": "Almarai", "primaryIndustry": "FMCG",
-    "hqCountry": "Saudi Arabia", "revenueUsd": 4200000000, "relevanceType": "Direct",
+    "hqCountry": "SA", "revenueUsd": 4200000000, "relevanceType": "Direct",
     "confidence": 91, "status": "untriaged", "mapX": 52, "mapY": 50 } ],
   "totalElements": 24, "totalPages": 1 }
 ```

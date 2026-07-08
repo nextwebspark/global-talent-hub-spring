@@ -70,9 +70,9 @@ Model note (design): a project row is `{ id, name, clientId, companies(count), a
 **`GET /api/app/projects/{id}`** → `ProjectDetailDto`:
 ```json
 { "id": 7, "name": "…", "status": "active", "searchRunId": 42,
-  "client": { "id": 501, "name": "Al Rabie Saudi Foods Co.", "primaryIndustry": "FMCG", "hqCountry": "Saudi Arabia" },
+  "client": { "id": 501, "name": "Al Rabie Saudi Foods Co.", "primaryIndustry": "FMCG", "hqCountry": "SA" },
   "companies": [ { "id": 100, "companyId": 12, "name": "Almarai", "primaryIndustry": "FMCG",
-    "hqCountry": "Saudi Arabia", "revenueUsd": 4200000000, "relevanceType": "Direct",
+    "hqCountry": "SA", "revenueUsd": 4200000000, "relevanceType": "Direct",
     "confidence": 91, "status": "untriaged", "mapX": 52, "mapY": 50 } ] }
 ```
 `404` if project not in caller's org.

@@ -23,7 +23,7 @@ it*. This README is the single global view of the whole build — track end-to-e
 |------|------|----------|--------|
 | 00 | `phase-00-foundation.md` | `app_*` schema DDL + `AppCompany` read entity + `GET /api/app/companies/{id}` | ☐ not started |
 | 01 | `phase-01-company-search.md` | SQL filter search + facets over `app_companies` | ☐ not started |
-| 02 | `phase-02-search-runs.md` | Persist a search execution (`app_search_runs`) | ☐ not started |
+| 02 | `phase-02-search-runs.md` | LLM (Vertex AI) intent extraction + persist a search run (`app_search_runs`) | ☐ not started |
 | 03 | `phase-03-projects.md` | Confirm universe → project under a client (`app_projects` + join) | ☐ not started |
 | 04 | `phase-04-project-companies.md` | Project universe list + per-company edit (select / map position) | ☐ not started |
 | 05 | `phase-05-outdated-comment-pass.md` | Mark superseded existing methods `// OUTDATED:` | ☐ not started |
@@ -35,7 +35,15 @@ Update the Status column as phases land (☐ → ◐ in progress → ☑ done).
 
 - New `app_*` tables, **same Postgres**, FK to `app_companies.id`.
 - Phase-1 search = **plain SQL filters** on `app_companies`; **pgvector is a later phase**.
-- New **`/api/app/*` REST**, paginated JSON, **no SSE** in early phases.
+- **LLM (Vertex AI) intent extraction lives in phase 02** (`POST /api/app/search-runs`): raw query →
+  structured `parsed_criteria`, which feeds the phase-01 SQL search. **Reuse the existing
+  `LlmService`/`geminiFlash` gateway** (fail-open on timeout) — no new LLM wiring, no SSE
+  (request/response only).
+- **Criteria map to REAL `app_companies` values, NOT the old `Taxonomy.java`** (which is the SSE
+  pipeline's vocab and does not match this table). `app_companies` is a **GCC dataset**: `hq_country`
+  = 6 ISO-2 codes (`AE,SA,QA,KW,OM,BH`), `revenue_range`/`employee_range` = fixed band strings,
+  `primary_industry` = 523 free labels (ILIKE-matched, not a set). New `taxonomy/AppSearchVocab`
+  holds the small fixed enums. Live-probed values recorded in memory `app-companies-real-vocab`.
 - Superseded existing code: **comment only** (`// OUTDATED: …`), never edit/delete.
 - `app_companies` is a **shared master catalog** — reads are NOT org-scoped. Only the new writable
   `app_*` tables carry `org_id` and are org-scoped.
@@ -61,7 +69,8 @@ Update the Status column as phases land (☐ → ◐ in progress → ☑ done).
 
 ## New tables (DDL authored once in phase 00 → `docs/05_app_portal.sql`)
 
-- `app_search_runs` — one search execution (query + resolved criteria + result count + status).
+- `app_search_runs` — one search execution (raw query + **LLM-parsed** criteria + result count +
+  status). `parsed_criteria` is produced by the phase-02 Vertex AI intent step, not the client.
 - `app_projects` — the "search map" workspace; belongs to a client company
   (`client_company_id → app_companies.id`), originates from a run (`search_run_id → app_search_runs.id`).
 - `app_project_companies` — join of a project's universe to master companies + per-company mapping
@@ -75,7 +84,8 @@ Update the Status column as phases land (☐ → ◐ in progress → ☑ done).
 GET   /api/app/companies/search   ?q&industry[]&country[]&revenueRange[]&employeeRange[]&sort&page&size
 GET   /api/app/companies/facets   (same filter params → grouped counts)
 GET   /api/app/companies/{id}
-POST  /api/app/search-runs
+POST  /api/app/search-runs        {query, mode}  → LLM parses query → parsed_criteria + runId
+PATCH /api/app/search-runs/{id}   {resultCount}   (write back after the search resolves)
 GET   /api/app/search-runs/{id}
 POST  /api/app/projects
 GET   /api/app/projects           ?page&size
@@ -107,15 +117,23 @@ global `authFetch` attaches base URL + bearer; call sites use bare `/api/app/*`.
 ## End-to-end data flow (the thread across phases)
 
 ```
-landing search ──► GET /api/app/companies/search + /facets        (phase 01, over app_companies)
+landing: user types a raw query
       │
-      ▼ user confirms universe
-POST /api/app/search-runs  ──► app_search_runs row                (phase 02)
-      │
-      ▼ pick client + selected companies
-POST /api/app/projects     ──► app_projects + app_project_companies (phase 03)
+      ▼ POST /api/app/search-runs {query, mode}
+LLM (Vertex AI) parses query ──► parsed_criteria + app_search_runs row   (phase 02)
+      │  (returns runId + criteria; UI shows editable scope chips)
+      ▼ run the search with those criteria
+GET /api/app/companies/search + /facets                                  (phase 01, over app_companies)
+      │  (PATCH the run with resultCount)
+      ▼ user confirms universe (pick client + selected companies)
+POST /api/app/projects     ──► app_projects + app_project_companies       (phase 03)
       │
       ▼ open project workspace
-GET  /api/app/projects/{id}/companies                              (phase 04)
+GET  /api/app/projects/{id}/companies                                     (phase 04)
 PATCH .../companies/{companyId}  (status triage / relevance / map x,y)    (phase 04)
 ```
+
+> Phase **numbers** stay build-order (01 SQL search ships before 02's LLM layer that feeds it, so 01
+> is testable standalone). **Runtime order** is 02 → 01: the LLM parses the query first, then the SQL
+> search uses the criteria. Phase 01 accepts criteria as plain params, so it doesn't depend on 02 to
+> be built or tested.
