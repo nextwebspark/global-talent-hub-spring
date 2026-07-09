@@ -2,13 +2,19 @@
 -- Derived (materialized) from the `companies` spine + 6 columnar src_* tables.
 -- Best-source-per-field, measured live on the 54,044-row corpus (see plan).
 -- Rebuild: apply this file, then run loader/build_app_companies.py.
--- Idempotent: drops + recreates the table (safe to re-run).
+-- Idempotent: CREATE ... IF NOT EXISTS (safe to re-run against an existing DB).
+--
+-- IMPORTANT: this table's `id` is a stable surrogate key that docs/05_app_portal.sql
+-- FKs to (app_projects.client_company_id, app_project_companies.company_id). Do NOT
+-- drop/truncate/recreate this table on refresh -- that resets the IDENTITY sequence
+-- and silently repoints every existing project/search-run at the wrong company.
+-- The loader MUST refresh via UPSERT keyed on the (source, source_id) unique index
+-- below (INSERT ... ON CONFLICT (source, source_id) DO UPDATE ...), never
+-- DELETE+INSERT or DROP+CREATE.
 
 BEGIN;
 
-DROP TABLE IF EXISTS app_companies CASCADE;
-
-CREATE TABLE app_companies (
+CREATE TABLE IF NOT EXISTS app_companies (
     -- own surrogate key (never tied to any vendor; portal FKs to this)
     id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     -- source provenance (a company may come from other providers later)
@@ -59,16 +65,22 @@ CREATE TABLE app_companies (
 
 -- Provenance uniqueness: one row per (provider, provider's native id). Drives the
 -- idempotent UPSERT rebuild and dedup when other sources are added later.
-CREATE UNIQUE INDEX idx_app_companies_source ON app_companies ("source", "source_id");
-CREATE INDEX idx_app_companies_company_id ON app_companies ("company_id");
+CREATE UNIQUE INDEX IF NOT EXISTS idx_app_companies_source     ON app_companies ("source", "source_id");
+CREATE INDEX IF NOT EXISTS idx_app_companies_company_id        ON app_companies ("company_id");
 
-CREATE INDEX idx_app_companies_revenue    ON app_companies ("revenue_usd");
-CREATE INDEX idx_app_companies_employees  ON app_companies ("employee_count");
-CREATE INDEX idx_app_companies_revrange   ON app_companies ("revenue_range");
-CREATE INDEX idx_app_companies_emprange   ON app_companies ("employee_range");
-CREATE INDEX idx_app_companies_tags       ON app_companies USING GIN ("industry_tags");
-CREATE INDEX idx_app_companies_primind    ON app_companies ("primary_industry");
-CREATE INDEX idx_app_companies_markets    ON app_companies USING GIN ("markets");
-CREATE INDEX idx_app_companies_country    ON app_companies ("hq_country");
+CREATE INDEX IF NOT EXISTS idx_app_companies_revenue    ON app_companies ("revenue_usd");
+CREATE INDEX IF NOT EXISTS idx_app_companies_employees  ON app_companies ("employee_count");
+CREATE INDEX IF NOT EXISTS idx_app_companies_revrange   ON app_companies ("revenue_range");
+CREATE INDEX IF NOT EXISTS idx_app_companies_emprange   ON app_companies ("employee_range");
+CREATE INDEX IF NOT EXISTS idx_app_companies_tags       ON app_companies USING GIN ("industry_tags");
+CREATE INDEX IF NOT EXISTS idx_app_companies_primind    ON app_companies ("primary_industry");
+CREATE INDEX IF NOT EXISTS idx_app_companies_markets    ON app_companies USING GIN ("markets");
+CREATE INDEX IF NOT EXISTS idx_app_companies_country    ON app_companies ("hq_country");
+
+-- pg_trgm speeds up the phase-01/02 `primary_industry ILIKE '%term%'` matching
+-- (leading-wildcard ILIKE can't use a plain B-tree index; this scales past 54k rows).
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_app_companies_primind_trgm
+    ON app_companies USING GIN ("primary_industry" gin_trgm_ops);
 
 COMMIT;
