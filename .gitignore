@@ -58,3 +58,6 @@ Thumbs.db
 
 # Data export dumps — never commit.
 docs/*.csv
+
+# stray IntelliJ scratch project
+untitled/
