@@ -61,17 +61,35 @@ from `entity/SearchQuery.java`). Org-scoped finder `findByIdAndOrgId`. Errors vi
   - **Fail-open**: bound the call by the existing `app.llm.call-timeout-ms`; on timeout/parse-failure
     return **empty criteria** (search still runs unfiltered on `q`) — mirror the old pipeline's
     fail-open behavior. Never hard-fail the request on the LLM.
-  - Output shape `SearchCriteria(industry[], country[], revenueRange[], employeeRange[])` — the same
-    keys phase-01's `/search` accepts. (Live probe of the real values recorded in memory
-    `app-companies-real-vocab`.)
-- **DTOs** — `CreateSearchRunRequest(query, mode)` (raw text only — the client no longer sends
-  criteria); `SearchRunDto(id, query, mode, parsedCriteria, resultCount, status, createdAt)`.
-  Optional `PATCH .../search-runs/{id}` (or fold into create) to write back `resultCount` once
+  - Output shape `SearchCriteria(industry[], country[], revenueRange[], employeeRange[])` — the
+    **query-active** keys phase-01's `/search` accepts. (Live probe of the real values recorded in
+    memory `app-companies-real-vocab`.)
+- **Combined `parsed_criteria` jsonb — one object, active + future keys together.** The wizard (design
+  `search-wizard.jsx`, 6 steps) also captures **position & experience** (step 4). Those are stored but
+  **NOT used to filter** — employee/executive data is not in `app_companies` yet (future). So
+  `parsed_criteria` = one jsonb:
+  ```
+  { industry[], country[], revenueRange[], employeeRange[],   // query-active → phase-01 /search
+    positions[], seniority[], experience[] }                  // captured, STORED ONLY, ignored by search
+  ```
+  Phase-01 `/search` reads **only the first four**. The people keys are persisted + echoed back so the
+  UI round-trips them, and so they're ready when employee data lands. No exec tables, no exec search.
+- **Client edits win over the LLM.** The wizard lets the user correct the AI's chips (industry/
+  location/revenue) and fill position/experience before submit. So the client sends its criteria and
+  the server does **not** blindly overwrite them: for each field, **use the client's value if present,
+  else fall back to the LLM parse**. (Raw-only queries — no client criteria — still get a pure LLM
+  parse.)
+- **DTOs** — `CreateSearchRunRequest(query, mode, criteria?)` where `criteria` is the optional
+  wizard-captured object (same shape as `parsed_criteria` above; may be partial or absent).
+  `SearchRunDto(id, query, mode, parsedCriteria, resultCount, status, createdAt)` — `parsedCriteria`
+  is the merged result. Optional `PATCH .../search-runs/{id}` to write back `resultCount` once
   phase-01 has run — see contract below.
 - **`service/AppSearchRunService`** — `create`: set `org_id`/`created_by` from the principal, 400 if
-  `query` blank, call `AppSearchIntentService.parse` → store `parsed_criteria`, persist, return DTO.
-  `get`: `findByIdAndOrgId` → 404. `setResultCount(id, count, user)`: org-scoped update of
-  `result_count` after the search resolves.
+  `query` blank, call `AppSearchIntentService.parse(query, mode)` for the LLM guess, **merge the
+  client's `criteria` over it (client wins per field)**, store the merged `parsed_criteria` (incl. the
+  people keys verbatim — people keys are never LLM-derived), persist, return DTO. `get`:
+  `findByIdAndOrgId` → 404. `setResultCount(id, count, user)`: org-scoped update of `result_count`
+  after the search resolves.
 - **`controller/AppSearchRunController`** — `POST /api/app/search-runs`,
   `GET /api/app/search-runs/{id}`, and the small result-count write-back.
 
@@ -80,20 +98,35 @@ query may be empty and criteria come from the list — the LLM parse is skipped 
 
 ## Endpoint contracts
 
-**`POST /api/app/search-runs`** (201) — LLM parses `query` → `parsedCriteria`:
+**`POST /api/app/search-runs`** (201) — LLM parses `query`; client `criteria` (if sent) is merged over
+the parse (client wins per field):
 ```json
-// request  (raw text only; NO client-supplied criteria)
-{ "query": "Top FMCG distributors in the UAE doing $1–5 billion", "mode": "Search" }
-// response  (parsedCriteria produced by Vertex AI, mapped to REAL app_companies values)
+// request  — query is required; criteria is OPTIONAL (the wizard-captured/edited chips).
+//            Omit criteria for a pure LLM parse.
+{ "query": "Top FMCG distributors in the UAE doing $1–5 billion", "mode": "Search",
+  "criteria": {                       // optional; any subset
+    "industry": ["FMCG"], "country": ["AE"],
+    "positions": ["CFO"], "seniority": ["C-Suite"], "experience": ["15+ years"]
+  } }
+// response  (parsedCriteria = LLM parse merged with client criteria, mapped to REAL app_companies values)
 //   country → ISO-2 code (AE);  revenueRange → exact band string (1B-5B);
-//   industry → free term, ILIKE-matched by phase-01 (not an enum)
+//   industry → free term, ILIKE-matched by phase-01 (not an enum);
+//   positions/seniority/experience → STORED, echoed back, NOT used to filter (no employee data yet)
 { "id": 42, "query": "…", "mode": "Search",
   "parsedCriteria": { "industry": ["FMCG", "Food and Beverage"], "country": ["AE"],
-                      "revenueRange": ["1B-5B"], "employeeRange": [] },
+                      "revenueRange": ["1B-5B"], "employeeRange": [],
+                      "positions": ["CFO"], "seniority": ["C-Suite"], "experience": ["15+ years"] },
   "resultCount": null, "status": "active", "createdAt": "2026-07-08T10:11:12" }
 ```
-`400` if `query` blank (except `Import a list` mode). On LLM timeout, `parsedCriteria` comes back with
-empty arrays (fail-open) and the run still persists.
+`400` if `query` blank (except `Import a list` mode). On LLM timeout the four query-active arrays come
+back empty (fail-open) — but any **client-supplied** criteria are still kept (merge), and the people
+keys are always echoed as sent. The run still persists.
+
+> **Validation scope:** only the four query-active fields are vocab-validated (`country`→ISO-2 code,
+> `revenueRange`/`employeeRange`→exact band, via `AppSearchVocab`; industry stays free-text). The
+> people keys (`positions`/`seniority`/`experience`) are **not** validated against any vocabulary —
+> they're stored as given and never reach SQL, so there's no injection surface. (When employee data
+> lands and they become filterable, add validation then.)
 
 **`PATCH /api/app/search-runs/{id}`** (write back the count after phase-01 search runs):
 ```json
@@ -104,28 +137,54 @@ empty arrays (fail-open) and the run still persists.
 
 ## UI — what to do this phase
 
-The user types only a query; the **backend** turns it into criteria. Persist the run first, use the
-returned criteria to drive the phase-01 search, then write the result count back.
+The **6-step Search Map Wizard** (`search-wizard.jsx`) is the entry. Step 1 = free-text prompt; the
+backend LLM parses it and the wizard **pre-fills** the later steps' chips; the user edits, then submits
+**both** the query and the (edited) criteria.
+
+**6 steps → backend mapping** (`SW_STEPS` in `search-wizard.jsx`):
+1. **Describe search** → `query`; POST triggers the LLM parse.
+2. **Client** → *not this phase* — becomes `clientCompanyId` at project-create (**phase 03**).
+3. **Company** (industry / revenue / employees) → `criteria.industry/revenueRange/employeeRange` — query-active.
+4. **Position & experience** → `criteria.positions/seniority/experience` — **captured & stored, NOT searched** (no employee data yet).
+5. **Location** → `criteria.country` (ISO-2) — query-active.
+6. **Criteria** (free tags) → folded into `criteria.industry` free terms (or kept as-is on the run) — not a hard filter this phase.
+
+**Entry: new user vs returning user (UI routing only — same endpoint).**
+`isNewUser = projects.length === 0` (`app.jsx`). New user → `SearchWizardPage` (full-page onboarding);
+returning user → `Landing` with `RecentProjects` + a "New search" `SearchWizardModal`. **No backend
+branch** — "has projects?" is just `GET /api/app/projects` empty-vs-not (phase 03). Both paths call the
+same `POST /api/app/search-runs`.
 
 **Tasks**
 - API client (`src/lib/api/appSearchRuns.ts` or fold into `appProjects.ts`): `useCreateSearchRun()`
-  mutation (query + mode) and a small `useSetSearchRunCount(id)`; types in `src/lib/api/types.ts`.
-- On "Discover Companies" (phase-01 landing): POST `{query, mode}` → get back `runId` +
-  `parsedCriteria`; run the phase-01 `/search` with those criteria; then PATCH the run with the
-  result count.
-- Show the `parsedCriteria` as **editable scope chips** — the LLM guess is a starting point the user
-  can correct before/after searching (correcting a chip re-runs `/search`; it does not need to
-  re-hit the LLM).
+  mutation (`{query, mode, criteria?}`) and a small `useSetSearchRunCount(id)`; types in
+  `src/lib/api/types.ts` (criteria object incl. the people keys).
+- Step 1 submit: POST `{query, mode}` (no criteria yet) → get `runId` + `parsedCriteria`; use it to
+  **pre-fill** steps 3–6 chips. On final submit, POST again (or PATCH) with the edited `criteria`, OR
+  post once at the end with `{query, mode, criteria}` — pick one in impl; the merge (client wins) makes
+  both safe.
+- Run the phase-01 `/search` with the four query-active fields of `parsedCriteria`; then PATCH the run
+  with the result count. **Ignore the people keys when calling `/search`.**
+- Show `parsedCriteria` as **editable scope chips** — correcting a chip re-runs `/search` (no re-hit of
+  the LLM).
 - Store the returned run `id` in the universe store (`src/lib/store/`) so the confirmed universe is
   tied to a run (consumed in phase 03's create-project call).
 
+**Deferred to a later iteration (NOT this phase):** *AI adjacent-industry suggestions* — the AI
+proposing extra selectable "adjacent" industry chips beyond the main pick. That needs an adjacency
+source matching the ~523 real `primary_industry` labels (LLM free-guess vs curated vs embedding map),
+which overlaps the phase-06 pgvector work. This phase only pre-fills the **direct** picks the LLM
+extracts; no "AI also suggested…" row yet.
+
 **Design references** (`doc/claude-design/ui_kits/talent-map/`)
+- `search-wizard.jsx` — `SW_STEPS` (6 steps), `SearchWizardPage` (new user) / `SearchWizardModal`
+  (returning), `swParsePrompt` (the **simulated** client parser the design ships — **replace with the
+  real `POST /api/app/search-runs` LLM parse**). `SwStep1`…`SwStep6` are the per-step edit surfaces.
 - `universe.jsx` — `UniverseView`: `summaryChips` / `buildCardCriteria` (lines 22–63) render the
   scope chips — those now display the **LLM-parsed** `parsedCriteria` (backend-supplied), not
   client-derived. `defaultCriteriaFor(query)` in the design becomes the server's job. `onConfirm` /
   `onSaveDraft` (line 89) are the confirm/draft actions the run underpins.
-- `search-wizard.jsx` / `sourcing-criteria.jsx` — the manual criteria-edit surface for correcting the
-  LLM's guess.
+- `sourcing-criteria.jsx` — the manual criteria-edit surface for correcting the LLM's guess.
 
 ## Test / verify
 
@@ -147,11 +206,24 @@ returned criteria to drive the phase-01 search, then write the result count back
 - [ ] `AppSearchIntentService` calls the existing `LlmService` (geminiFlash); maps country→ISO-2 +
       revenue/employee→exact `app_companies` bands via new `taxonomy/AppSearchVocab` (NOT the old
       `Taxonomy`); industry left free for ILIKE; **fail-open** on timeout — no new LLM gateway added.
-- [ ] `parsedCriteria` jsonb round-trips; `resultCount` write-back works.
+- [ ] `parsedCriteria` jsonb round-trips (incl. the people keys `positions/seniority/experience`);
+      client `criteria` merges over the LLM parse (client wins per field); `resultCount` write-back works.
+- [ ] People keys are stored + echoed but never passed to phase-01 `/search`.
 - [ ] `AppSearchRunServiceTest` + `AppSearchIntentServiceTest` green (org isolation, 400, fail-open,
-      off-vocab drop) with the LLM stubbed.
+      off-vocab drop, client-merge) with the LLM stubbed.
 - [ ] UI: query → run (LLM criteria) → phase-01 search → count write-back; chips editable.
 - [ ] No existing backend file changed (LLM gateway is reused, not modified).
+
+## Decided (this round)
+
+- **One combined `parsed_criteria` jsonb** holds both the query-active fields
+  (`industry/country/revenueRange/employeeRange`) and the future/people fields
+  (`positions/seniority/experience`). Search reads only the query-active four; people keys are
+  stored-only until employee data exists.
+- **Position & experience** (wizard step 4) are **captured from the UI and resent**, persisted on the
+  run, but **not used in the intent parse or the SQL search** — no employee data yet.
+- **AI adjacent-industry suggestions are DEFERRED** to a later iteration (see UI section). This phase
+  only pre-fills the direct picks the LLM extracts.
 
 ## Open questions (resolve at implementation)
 

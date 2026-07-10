@@ -30,17 +30,24 @@ public class CompanyController {
 
     private final CompanyService companyService;
 
+    // NOTE: the v2 discovery flow lists/searches the app_companies master catalog via
+    // AppCompanyController (/api/app/companies/search + /facets), not this per-org hak_companies
+    // listing. Still used by the current dashboard UI — kept as-is.
     @GetMapping("/api/companies")
     public List<CompanyWithExecutives> getAll(@AuthenticationPrincipal AuthenticatedUser user) {
         return companyService.getAllWithExecutives(user.orgId());
     }
 
+    // NOTE: v2 company search is AppCompanyController GET /api/app/companies/search (over
+    // app_companies). Still used by the current UI (CompanyList / AddCompanyDialog / useImportMode).
     @GetMapping("/api/companies/search")
     public List<Company> search(@RequestParam(name = "name", required = false, defaultValue = "") String name,
                                 @AuthenticationPrincipal AuthenticatedUser user) {
         return companyService.searchByName(name, user.orgId());
     }
 
+    // NOTE: v2 single-company read is AppCompanyController GET /api/app/companies/{id} (over
+    // app_companies). Still used by the current UI (RightPanel / DataTable) — kept as-is.
     @GetMapping("/api/companies/{id}")
     public CompanyWithExecutives getOne(@PathVariable Long id, @AuthenticationPrincipal AuthenticatedUser user) {
         return companyService.getWithExecutives(id, user.orgId());

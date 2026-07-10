@@ -117,6 +117,10 @@ public class SearchController {
      * @param response
      * @return
      */
+    // NOTE: the v2 flow replaces this SSE intent+search with a non-streaming request/response pair:
+    // AppSearchRunController POST /api/app/search-runs (Vertex AI intent → parsed_criteria) then
+    // AppCompanyController GET /api/app/companies/search. Still used by the current UI
+    // (useSearchStream.ts) — kept as-is; no SSE in the v2 surface.
     @GetMapping(value = "/api/search/enhanced-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter enhancedStream(@RequestParam String query,
                                      @RequestParam String sessionId,
@@ -254,6 +258,9 @@ public class SearchController {
         return Map.of("success", true);
     }
 
+    // NOTE: v2 confirms a universe into a project via AppProjectController POST /api/app/projects
+    // (creates app_projects + app_project_companies join rows). Still used by the current UI
+    // (UniversePage add-to-project) — kept as-is.
     @PostMapping("/api/search/add-to-project")
     public SearchManagementService.AddToProjectResult addToProject(
             @RequestBody Map<String, Object> body, @AuthenticationPrincipal AuthenticatedUser user) {

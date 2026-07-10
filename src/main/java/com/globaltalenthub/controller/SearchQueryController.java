@@ -18,6 +18,9 @@ import java.util.List;
 import java.util.Map;
 
 /** Project (search-query) management — clear results, save draft, bulk delete. Port of searchQueries.ts. */
+// NOTE: v2 persists a confirmed universe as an app_projects "search map" via AppProjectController
+// (/api/app/projects); this hak-era search-query persistence is superseded there. Still used by the
+// current UI (ProjectsPage / UniversePage / ProjectsPanel) — kept as-is.
 @RestController
 @RequiredArgsConstructor
 public class SearchQueryController {
